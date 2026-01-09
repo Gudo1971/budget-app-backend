@@ -1,0 +1,7 @@
+name,type
+Boodschappen,variable
+Uit eten,variable
+Vervoer,variable
+Abonnementen,fixed
+Huur,fixed
+Energie,fixed
