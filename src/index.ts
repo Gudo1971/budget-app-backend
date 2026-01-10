@@ -17,8 +17,15 @@ import splitTransactionsRouter from "./routes/split-transactions";
 import receiptsRouter from "./routes/receipts";
 import transactionRoutes from "./routes/transactions";
 import itemRoutes from "./routes/items";
+import merchantCategoryRoute from "./routes/merchant-category";
 
-// ERROR HANDLER
+import { migrateReceiptsTable } from "./lib/migrations";
+
+// ⭐ EERST database aanmaken
+
+// ⭐ DAN pas migraties uitvoeren
+migrateReceiptsTable();
+
 console.log("🔥 INDEX STARTED");
 
 const app = express();
@@ -44,13 +51,12 @@ app.use("/api/split-transactions", splitTransactionsRouter);
 app.use("/api/receipts", receiptsRouter);
 app.use("/api/transaction", transactionRoutes);
 app.use("/api/items", itemRoutes);
+app.use("/merchant-category", merchantCategoryRoute);
 
-// ERROR HANDLER
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
 
-// ⭐ DIT IS DE BELANGRIJKSTE REGEL
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log("Using DB file:", path.resolve("budget.db"));

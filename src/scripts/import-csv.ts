@@ -139,8 +139,28 @@ function importTransactions() {
   `);
 
   const stmt = db.prepare(`
-    INSERT INTO transactions (date, description, amount, category_id)
-    VALUES (@date, @description, @amount, @category_id)
+    INSERT INTO transactions (
+      date,
+      description,
+      amount,
+      category_id,
+      merchant,
+      category,
+      recurring,
+      user_id,
+      receipt_id
+    )
+    VALUES (
+      @date,
+      @description,
+      @amount,
+      @category_id,
+      @merchant,
+      @category,
+      @recurring,
+      @user_id,
+      NULL
+    )
   `);
 
   const insertMany = db.transaction((rows: any[]) => {
@@ -154,6 +174,10 @@ function importTransactions() {
         description: row.description,
         amount: row.amount,
         category_id: cat?.id ?? null,
+        merchant: row.merchant ?? row.description, // fallback
+        category: row.category_name ?? null,
+        recurring: row.recurring ?? 0,
+        user_id: "demo-user",
       });
     }
   });
