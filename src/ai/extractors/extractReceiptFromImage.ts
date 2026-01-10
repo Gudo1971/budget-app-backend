@@ -1,51 +1,66 @@
-import fs from "fs";
-import { openai } from "../visionClient";
-import { ReceiptSchema, Receipt } from "../schemas/ReceiptSchema";
-import { runExtraction } from "../engine";
+import OpenAI from "openai";
+
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function extractReceiptFromImage(
-  filePath: string
-): Promise<Receipt> {
-  const imageBuffer = fs.readFileSync(filePath);
-  const base64 = imageBuffer.toString("base64");
-
-  // 1) OCR via GPT-4.1 using base64 image
-  const ocrResponse = await openai.responses.create({
-    model: "gpt-4.1",
-    input: `
-Je bent een OCR-engine. Lees ALLE tekst uit deze afbeelding.
-
-IMAGE:
-data:image/jpeg;base64,${base64}
-`,
+  fileUrl: string
+): Promise<{ ocrText: string; parsedJson: any }> {
+  // 1. OCR extractie vanuit de afbeelding
+  const ocrResponse = await client.responses.create({
+    model: "gpt-4o-mini",
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: "Extract all text from this receipt.",
+          },
+          {
+            type: "input_image",
+            image_url: fileUrl,
+            detail: "high", // ← verplicht in de types
+          },
+        ],
+      },
+    ],
   });
 
-  const ocrText = ocrResponse.output_text || "";
+  const ocrText = ocrResponse.output_text ?? "";
 
-  // 2) OCR → JSON extractie via jouw engine
-  const prompt = `
-Je bent een AI die kassabonnen omzet naar gestructureerde JSON.
+  // 2. JSON parsing op basis van de OCR-tekst
+  const jsonResponse = await client.responses.create({
+    model: "gpt-4o-mini",
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: `Parse this receipt text into JSON with fields:
+merchant, date, total, currency, items[]. Each item has: name, quantity, price.`,
+          },
+          {
+            type: "input_text",
+            text: ocrText,
+          },
+        ],
+      },
+    ],
+  });
 
-OCR tekst:
-${ocrText}
+  let parsedJson: any = null;
+  try {
+    parsedJson = JSON.parse(jsonResponse.output_text ?? "{}");
+  } catch {
+    parsedJson = {
+      error: "Failed to parse JSON",
+      raw: jsonResponse.output_text,
+    };
+  }
 
-Geef ALLEEN geldige JSON terug met:
-{
-  "merchant": string | null,
-  "date": string | null,
-  "total": number | null,
-  "currency": string | null,
-  "items": [
-    {
-      "name": string,
-      "quantity": number,
-      "price": number,
-      "total": number | null,
-      "category": string | null
-    }
-  ]
-}
-`;
-
-  return await runExtraction(prompt, ReceiptSchema);
+  return {
+    ocrText,
+    parsedJson,
+  };
 }

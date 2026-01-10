@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import { ZodSchema } from "zod";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+export const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!,
 });
 
 export async function runExtraction<T>(
@@ -11,7 +11,17 @@ export async function runExtraction<T>(
 ): Promise<T> {
   const response = await openai.responses.parse({
     model: "gpt-4.1",
-    input: prompt,
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: prompt,
+          },
+        ],
+      },
+    ],
     schema,
   });
 

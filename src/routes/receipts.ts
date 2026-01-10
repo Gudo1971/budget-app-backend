@@ -27,13 +27,15 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// Receipt type
-type Receipt = {
+// Dit is jouw echte DB-record type
+type ReceiptRecord = {
   id: number;
   filename: string;
   original_name: string;
   uploaded_at: string;
   user_id: string;
+  ocrText?: string | null;
+  aiResult?: string | null;
 };
 
 // ------------------------------------------------------------
@@ -43,9 +45,9 @@ router.get("/", (req: Request, res: Response) => {
   try {
     const receipts = db
       .prepare(
-        "SELECT id, filename, original_name, uploaded_at FROM receipts WHERE user_id = ? ORDER BY uploaded_at DESC"
+        "SELECT id, filename, original_name, uploaded_at, ocrText, aiResult FROM receipts WHERE user_id = ? ORDER BY uploaded_at DESC"
       )
-      .all(USER_ID) as Receipt[];
+      .all(USER_ID) as ReceiptRecord[];
 
     res.json(receipts);
   } catch (err) {
@@ -63,9 +65,9 @@ router.get("/:id", (req: Request, res: Response) => {
   try {
     const receipt = db
       .prepare(
-        "SELECT id, filename, original_name, uploaded_at FROM receipts WHERE id = ? AND user_id = ?"
+        "SELECT id, filename, original_name, uploaded_at, ocrText, aiResult FROM receipts WHERE id = ? AND user_id = ?"
       )
-      .get(id, USER_ID) as Receipt | undefined;
+      .get(id, USER_ID) as ReceiptRecord | undefined;
 
     if (!receipt) {
       return res.status(404).json({ error: "Receipt not found" });
@@ -86,7 +88,7 @@ router.get("/:id/file", (req: Request, res: Response) => {
 
   const receipt = db
     .prepare("SELECT * FROM receipts WHERE id = ? AND user_id = ?")
-    .get(id, USER_ID) as Receipt | undefined;
+    .get(id, USER_ID) as ReceiptRecord | undefined;
 
   if (!receipt) {
     return res.status(404).json({ error: "Receipt not found" });
@@ -131,9 +133,9 @@ router.post(
 
       const receipts = db
         .prepare(
-          "SELECT id, filename, original_name, uploaded_at FROM receipts WHERE user_id = ? ORDER BY uploaded_at DESC"
+          "SELECT id, filename, original_name, uploaded_at, ocrText, aiResult FROM receipts WHERE user_id = ? ORDER BY uploaded_at DESC"
         )
-        .all(USER_ID) as Receipt[];
+        .all(USER_ID) as ReceiptRecord[];
 
       res.json({
         message: "Receipts uploaded",
@@ -155,7 +157,7 @@ router.delete("/:id", (req: Request, res: Response) => {
   try {
     const receipt = db
       .prepare("SELECT * FROM receipts WHERE id = ? AND user_id = ?")
-      .get(id, USER_ID) as Receipt | undefined;
+      .get(id, USER_ID) as ReceiptRecord | undefined;
 
     if (!receipt) {
       return res.status(404).json({ error: "Receipt not found" });
@@ -188,14 +190,13 @@ router.get("/zip", async (req, res) => {
   }
 
   const ids = idsParam.toString().split(",");
-
   const placeholders = ids.map(() => "?").join(",");
 
   const receipts = db
     .prepare(
       `SELECT * FROM receipts WHERE id IN (${placeholders}) AND user_id = ?`
     )
-    .all(...ids, USER_ID) as Receipt[];
+    .all(...ids, USER_ID) as ReceiptRecord[];
 
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", "attachment; filename=receipts.zip");
@@ -222,7 +223,7 @@ router.post("/:id/extract", async (req, res) => {
   try {
     const receipt = db
       .prepare("SELECT * FROM receipts WHERE id = ? AND user_id = ?")
-      .get(id, USER_ID) as Receipt | undefined;
+      .get(id, USER_ID) as ReceiptRecord | undefined;
 
     if (!receipt) {
       return res.status(404).json({ error: "Receipt not found" });
@@ -234,7 +235,18 @@ router.post("/:id/extract", async (req, res) => {
       return res.status(404).json({ error: "File not found" });
     }
 
-    const extracted = await extractReceiptFromImage(filePath);
+    // ⭐ Gebruik je ngrok URL hier
+    const fileUrl = `https://investible-cycadlike-kaidence.ngrok-free.dev/api/receipts/${id}/file`;
+
+    const extracted = await extractReceiptFromImage(fileUrl);
+
+    db.prepare(
+      `
+      UPDATE receipts
+      SET ocrText = ?, aiResult = ?
+      WHERE id = ? AND user_id = ?
+    `
+    ).run(extracted.ocrText, JSON.stringify(extracted.parsedJson), id, USER_ID);
 
     res.json({
       success: true,
