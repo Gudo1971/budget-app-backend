@@ -4,17 +4,18 @@ import fs from "fs";
 import path from "path";
 import { db } from "../lib/db";
 import archiver from "archiver";
+import { extractReceiptFromImage } from "../ai/extractors/extractReceiptFromImage";
 
 const router = Router();
 
-// ⭐ Hardcoded user (later vervangen door echte login)
+// Hardcoded user
 const USER_ID = "demo-user";
 
-// ⭐ User-specifieke upload map
+// Upload directory
 const userUploadDir = path.join(process.cwd(), "uploads", USER_ID);
 fs.mkdirSync(userUploadDir, { recursive: true });
 
-// ⭐ Multer storage config
+// Multer storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, userUploadDir),
   filename: (req, file, cb) => {
@@ -26,7 +27,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// ⭐ Receipt type
+// Receipt type
 type Receipt = {
   id: number;
   filename: string;
@@ -36,7 +37,7 @@ type Receipt = {
 };
 
 // ------------------------------------------------------------
-// GET /receipts → alle bonnen van deze user
+// GET /receipts → alle bonnen
 // ------------------------------------------------------------
 router.get("/", (req: Request, res: Response) => {
   try {
@@ -54,7 +55,7 @@ router.get("/", (req: Request, res: Response) => {
 });
 
 // ------------------------------------------------------------
-// GET /receipts/:id → één bon ophalen
+// GET /receipts/:id → één bon
 // ------------------------------------------------------------
 router.get("/:id", (req: Request, res: Response) => {
   const { id } = req.params;
@@ -78,30 +79,36 @@ router.get("/:id", (req: Request, res: Response) => {
 });
 
 // ------------------------------------------------------------
-// GET /receipts/:id/file → fysieke file downloaden
+// GET /receipts/:id/file → DOWNLOAD echte file
 // ------------------------------------------------------------
 router.get("/:id/file", (req: Request, res: Response) => {
   const { id } = req.params;
 
-  try {
-    const receipt = db
-      .prepare("SELECT * FROM receipts WHERE id = ? AND user_id = ?")
-      .get(id, USER_ID) as Receipt | undefined;
+  const receipt = db
+    .prepare("SELECT * FROM receipts WHERE id = ? AND user_id = ?")
+    .get(id, USER_ID) as Receipt | undefined;
 
-    if (!receipt) {
-      return res.status(404).json({ error: "Receipt not found" });
-    }
-
-    const filePath = path.join(userUploadDir, receipt.filename);
-    res.sendFile(filePath);
-  } catch (err) {
-    console.error("File error:", err);
-    res.status(500).json({ error: "Failed to send file" });
+  if (!receipt) {
+    return res.status(404).json({ error: "Receipt not found" });
   }
+
+  const filePath = path.join(userUploadDir, receipt.filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "File not found" });
+  }
+
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${receipt.original_name}"`
+  );
+  res.setHeader("Content-Type", "application/octet-stream");
+
+  return res.sendFile(filePath);
 });
 
 // ------------------------------------------------------------
-// POST /receipts/upload → meerdere bonnen uploaden
+// POST /receipts/upload → upload meerdere bonnen
 // ------------------------------------------------------------
 router.post(
   "/upload",
@@ -122,7 +129,6 @@ router.post(
         stmt.run(file.filename, file.originalname, USER_ID);
       }
 
-      // ⭐ Na upload ALLE bonnen van deze user teruggeven
       const receipts = db
         .prepare(
           "SELECT id, filename, original_name, uploaded_at FROM receipts WHERE user_id = ? ORDER BY uploaded_at DESC"
@@ -141,7 +147,7 @@ router.post(
 );
 
 // ------------------------------------------------------------
-// DELETE /receipts/:id → bon + file verwijderen
+// DELETE /receipts/:id → bon verwijderen
 // ------------------------------------------------------------
 router.delete("/:id", (req: Request, res: Response) => {
   const { id } = req.params;
@@ -173,7 +179,7 @@ router.delete("/:id", (req: Request, res: Response) => {
 });
 
 // ------------------------------------------------------------
-// GET /receipts/zip?ids=1,2,3 → ZIP downloaden
+// GET /receipts/zip → ZIP download
 // ------------------------------------------------------------
 router.get("/zip", async (req, res) => {
   const idsParam = req.query.ids;
@@ -205,6 +211,40 @@ router.get("/zip", async (req, res) => {
   }
 
   archive.finalize();
+});
+
+// ------------------------------------------------------------
+// POST /receipts/:id/extract → AI extractie
+// ------------------------------------------------------------
+router.post("/:id/extract", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const receipt = db
+      .prepare("SELECT * FROM receipts WHERE id = ? AND user_id = ?")
+      .get(id, USER_ID) as Receipt | undefined;
+
+    if (!receipt) {
+      return res.status(404).json({ error: "Receipt not found" });
+    }
+
+    const filePath = path.join(userUploadDir, receipt.filename);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    const extracted = await extractReceiptFromImage(filePath);
+
+    res.json({
+      success: true,
+      receiptId: id,
+      extracted,
+    });
+  } catch (err) {
+    console.error("Receipt extraction error:", err);
+    res.status(500).json({ error: "Receipt extraction failed" });
+  }
 });
 
 export default router;

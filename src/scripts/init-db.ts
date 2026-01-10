@@ -1,4 +1,3 @@
-// scripts/init-db.ts
 import { db } from "../lib/db";
 
 db.exec(`
@@ -19,7 +18,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS budgets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    month TEXT NOT NULL, -- '2025-01'
+    month TEXT NOT NULL,
     total_budget REAL NOT NULL
   );
 
@@ -30,6 +29,7 @@ db.exec(`
     budget_amount REAL NOT NULL,
     FOREIGN KEY (category_id) REFERENCES categories(id)
   );
+
 
   CREATE TABLE IF NOT EXISTS fixed_costs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,6 +45,14 @@ db.exec(`
     current_amount REAL NOT NULL,
     deadline TEXT
   );
-`);
 
-console.log("Database initialized.");
+CREATE TABLE IF NOT EXISTS receipts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  filename TEXT NOT NULL,
+  original_name TEXT NOT NULL,
+  uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  user_id TEXT NOT NULL
+);
+
+`);
+console.log("Database initialized successfully.");

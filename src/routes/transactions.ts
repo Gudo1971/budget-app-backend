@@ -85,5 +85,59 @@ router.post("/", (req, res) => {
     res.status(500).json({ error: "Failed to create transaction" });
   }
 });
+import { extractTransaction } from "../ai/extractors/extractTransaction";
+
+// POST /transactions/extract → AI transactie-extractie
+router.post("/extract", async (req, res) => {
+  try {
+    const { text } = req.body;
+
+    if (!text) {
+      return res.status(400).json({ error: "Missing text field" });
+    }
+
+    const extracted = await extractTransaction(text);
+
+    res.json({
+      success: true,
+      extracted,
+    });
+  } catch (error) {
+    console.error("AI extraction error:", error);
+    res.status(500).json({ error: "AI extraction failed" });
+  }
+});
+router.post("/extract-and-save", async (req, res) => {
+  try {
+    const { text } = req.body;
+
+    if (!text) {
+      return res.status(400).json({ error: "Missing text field" });
+    }
+
+    const extracted = await extractTransaction(text);
+
+    const stmt = db.prepare(`
+      INSERT INTO transactions (date, description, amount, category_id)
+      VALUES (?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      extracted.date || new Date().toISOString().slice(0, 10),
+      extracted.merchant || extracted.category || "Unknown",
+      extracted.amount,
+      null // categorie wordt later bepaald
+    );
+
+    res.json({
+      success: true,
+      id: result.lastInsertRowid,
+      extracted,
+    });
+  } catch (error) {
+    console.error("AI extract+save error:", error);
+    res.status(500).json({ error: "AI extract+save failed" });
+  }
+});
 
 export default router;

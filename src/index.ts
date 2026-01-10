@@ -15,6 +15,9 @@ import savingsGoalsRouter from "./routes/savings-goals";
 import budgetCategoriesRouter from "./routes/budget-categories";
 import splitTransactionsRouter from "./routes/split-transactions";
 import receiptsRouter from "./routes/receipts";
+import transactionRoutes from "./routes/transactions";
+import itemRoutes from "./routes/items";
+
 // ERROR HANDLER
 console.log("🔥 INDEX STARTED");
 
@@ -39,6 +42,8 @@ app.use("/api/savings-goals", savingsGoalsRouter);
 app.use("/api/budget-categories", budgetCategoriesRouter);
 app.use("/api/split-transactions", splitTransactionsRouter);
 app.use("/api/receipts", receiptsRouter);
+app.use("/api/transaction", transactionRoutes);
+app.use("/api/items", itemRoutes);
 
 // ERROR HANDLER
 app.use(errorHandler);
