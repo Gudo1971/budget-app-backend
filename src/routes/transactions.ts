@@ -56,6 +56,27 @@ router.get("/", (req, res) => {
   }
 });
 
+router.get("/transactions/:id/receipt", (req, res) => {
+  const id = req.params.id;
+
+  const receipt = db
+    .prepare(
+      `
+    SELECT r.*
+    FROM receipts r
+    JOIN transactions t ON t.receipt_id = r.id
+    WHERE t.id = ?
+  `
+    )
+    .get(id);
+
+  if (!receipt) {
+    return res.status(404).json({ error: "Receipt not found" });
+  }
+
+  res.json(receipt);
+});
+
 // POST /transactions → nieuwe transactie opslaan
 router.post("/", (req, res) => {
   try {
@@ -137,6 +158,92 @@ router.post("/extract-and-save", async (req, res) => {
   } catch (error) {
     console.error("AI extract+save error:", error);
     res.status(500).json({ error: "AI extract+save failed" });
+  }
+});
+router.post("/from-extracted", (req, res) => {
+  try {
+    const { receiptId, extracted, form } = req.body;
+
+    // 1. Basisvelden bepalen (zoals je nu al doet)
+    const amount = form.amount ?? extracted.total ?? 0;
+    const date = form.date ?? extracted.date ?? new Date().toISOString();
+    const merchant = form.merchant ?? extracted.merchant ?? "Onbekend";
+
+    // 2. Duplicate check op datum + bedrag + merchant
+    const existing = db
+      .prepare(
+        `
+        SELECT id FROM transactions
+        WHERE date = ?
+          AND amount = ?
+          AND LOWER(merchant) = LOWER(?)
+      `
+      )
+      .get(date, amount, merchant) as { id: number } | undefined;
+
+    if (existing) {
+      return res.status(409).json({
+        error: "Duplicate transaction detected",
+        transaction_id: existing.id,
+      });
+    }
+
+    // 3. AI categorie (string)
+    const raw = extracted.merchant_category?.trim() ?? null;
+    const aiCategory = raw
+      ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase()
+      : null;
+
+    // 4. category_id (van formulier of AI)
+    let category_id = form.category_id ?? null;
+
+    if (!category_id && aiCategory) {
+      const existingCat = db
+        .prepare("SELECT id FROM categories WHERE LOWER(name) = LOWER(?)")
+        .get(aiCategory) as { id: number } | undefined;
+
+      if (existingCat) {
+        category_id = existingCat.id;
+      } else {
+        const insert = db
+          .prepare("INSERT INTO categories (name, type) VALUES (?, ?)")
+          .run(aiCategory, "variable") as { lastInsertRowid: number };
+
+        category_id = insert.lastInsertRowid as number;
+      }
+    }
+
+    // 5. Transactie opslaan
+    const stmt = db.prepare(`
+      INSERT INTO transactions (receipt_id, amount, date, merchant, category_id)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(receiptId, amount, date, merchant, category_id) as {
+      lastInsertRowid: number;
+    };
+
+    // 6. Volledige categorie ophalen
+    let category = null;
+    if (category_id) {
+      category = db
+        .prepare("SELECT id, name, type FROM categories WHERE id = ?")
+        .get(category_id) as { id: number; name: string; type: string };
+    }
+
+    // 7. Response
+    res.json({
+      id: result.lastInsertRowid,
+      receiptId,
+      amount,
+      date,
+      merchant,
+      category_id,
+      category,
+    });
+  } catch (error) {
+    console.error("Error creating transaction:", error);
+    res.status(500).json({ error: "Failed to create transaction" });
   }
 });
 

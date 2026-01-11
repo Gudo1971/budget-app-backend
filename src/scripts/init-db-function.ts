@@ -8,15 +8,15 @@ export function initDatabase() {
       type TEXT NOT NULL CHECK(type IN ('variable', 'fixed'))
     );
 
-    CREATE TABLE IF NOT EXISTS receipts (
+    CREATE TABLE receipts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       filename TEXT NOT NULL,
       original_name TEXT NOT NULL,
       uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
       user_id TEXT NOT NULL,
       ocrText TEXT,
-      aiResult TEXT
-    );
+      aiResult TEXT,
+      category TEXT, subCategory TEXT, processed INTEGER DEFAULT 0);
 
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

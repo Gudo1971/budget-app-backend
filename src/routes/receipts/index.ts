@@ -3,6 +3,7 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 import { db } from "../../lib/db";
+import { findMatchingTransaction } from "../../ai/matching/findMatchingTransaction";
 
 const router = Router();
 const USER_ID = "demo-user";
@@ -72,7 +73,9 @@ router.get("/:id/file", (req: Request, res: Response) => {
   const { id } = req.params;
 
   const receipt = db
-    .prepare("SELECT * FROM receipts WHERE id = ? AND user_id = ?")
+    .prepare(
+      "SELECT id, filename, original_name, uploaded_at, ocrText, aiResult FROM receipts WHERE id = ? AND user_id = ?"
+    )
     .get(id, USER_ID) as ReceiptRecord | undefined;
 
   if (!receipt) return res.status(404).json({ error: "Receipt not found" });
@@ -127,7 +130,9 @@ router.delete("/:id", (req: Request, res: Response) => {
   const { id } = req.params;
 
   const receipt = db
-    .prepare("SELECT * FROM receipts WHERE id = ? AND user_id = ?")
+    .prepare(
+      "SELECT id, filename, original_name, uploaded_at, ocrText, aiResult FROM receipts WHERE id = ? AND user_id = ?"
+    )
     .get(id, USER_ID) as ReceiptRecord | undefined;
 
   if (!receipt) return res.status(404).json({ error: "Receipt not found" });
@@ -141,6 +146,38 @@ router.delete("/:id", (req: Request, res: Response) => {
   );
 
   res.json({ message: "Receipt deleted" });
+});
+// ------------------------------------------------------------
+// GET /receipts/:id/match → AI matchen met transacties
+// ------------------------------------------------------------
+router.get("/:id/match", async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const receipt = db
+    .prepare(
+      "SELECT id, filename, original_name, uploaded_at, ocrText, aiResult FROM receipts WHERE id = ? AND user_id = ?"
+    )
+    .get(id, USER_ID) as ReceiptRecord | undefined;
+
+  if (!receipt) {
+    return res.status(404).json({ error: "Receipt not found" });
+  }
+
+  // aiResult bevat jouw extracted JSON
+  let extracted;
+  try {
+    extracted = JSON.parse(receipt.aiResult ?? "{}");
+  } catch {
+    extracted = {};
+  }
+
+  const matchResult = await findMatchingTransaction({
+    amount: extracted.total ?? 0,
+    date: extracted.date ?? "",
+    merchant: extracted.merchant ?? "",
+  });
+
+  res.json(matchResult);
 });
 
 export default router;
