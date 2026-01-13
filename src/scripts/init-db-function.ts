@@ -18,7 +18,7 @@ export function initDatabase() {
       aiResult TEXT,
       category TEXT, subCategory TEXT, processed INTEGER DEFAULT 0);
 
-    CREATE TABLE IF NOT EXISTS transactions (
+    CREATE TABLE transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL,
       description TEXT NOT NULL,
@@ -28,10 +28,10 @@ export function initDatabase() {
       category TEXT,
       recurring INTEGER DEFAULT 0,
       user_id TEXT NOT NULL,
-      receipt_id INTEGER,
+      receipt_id INTEGER, transaction_date TEXT,
       FOREIGN KEY (category_id) REFERENCES categories(id),
       FOREIGN KEY (receipt_id) REFERENCES receipts(id)
-    );
+    )
 
     CREATE TABLE IF NOT EXISTS budgets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,6 +53,12 @@ export function initDatabase() {
       amount REAL NOT NULL,
       interval TEXT NOT NULL CHECK(interval IN ('monthly', 'yearly'))
     );
+
+    CREATE TABLE merchant_memory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      category TEXT NOT NULL
+    )
 
     CREATE TABLE IF NOT EXISTS savings_goals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
