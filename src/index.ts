@@ -15,20 +15,17 @@ import savingsGoalsRouter from "./routes/savings-goals";
 import budgetCategoriesRouter from "./routes/budget-categories";
 import splitTransactionsRouter from "./routes/split-transactions";
 import receiptsRouter from "./routes/receipts";
-import transactionRoutes from "./routes/transactions";
 import itemRoutes from "./routes/items";
-import merchantCategoryRoute from "./routes/merchant-category";
+import merchantCategoryRoute from "./routes/merchant-categories";
 
 import { migrateReceiptsTable } from "./lib/migrations";
 
-// ⭐ EERST database aanmaken
-
-// ⭐ DAN pas migraties uitvoeren
+// ⭐ Migraties uitvoeren
 migrateReceiptsTable();
 
 console.log("🔥 INDEX STARTED");
 
-const app = express();
+const app = express(); // <-- DIT MOET BOVEN ALLE app.use() STAAN
 
 app.use(
   cors({
@@ -40,7 +37,7 @@ app.use(
 app.use(express.json());
 app.use(requestLogger);
 
-// API ROUTES
+// ⭐ API ROUTES (nu op de juiste plek)
 app.use("/api/transactions", transactionsRouter);
 app.use("/api/categories", categoriesRouter);
 app.use("/api/budgets", budgetRouter);
@@ -49,9 +46,8 @@ app.use("/api/savings-goals", savingsGoalsRouter);
 app.use("/api/budget-categories", budgetCategoriesRouter);
 app.use("/api/split-transactions", splitTransactionsRouter);
 app.use("/api/receipts", receiptsRouter);
-app.use("/api/transaction", transactionRoutes);
 app.use("/api/items", itemRoutes);
-app.use("/merchant-category", merchantCategoryRoute);
+app.use("/api/merchant-categories", merchantCategoryRoute);
 
 app.use(errorHandler);
 
