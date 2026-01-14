@@ -1,5 +1,5 @@
 import fs from "fs";
-import { transactionService } from "../services/transactions/transaction.service";
+import { transactionService } from "../services/transactions/transactions.service";
 import { parseCsv } from "../scripts/csv.parser"; // buffer-based parser
 
 async function importCsv(filePath: string) {

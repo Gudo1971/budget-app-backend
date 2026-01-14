@@ -1,5 +1,5 @@
 import { parsePdf } from "./pdf.parser";
-import { transactionService } from "../transactions/transaction.service";
+import { transactionService } from "../transactions/transactions.service";
 
 export const pdfImportService = {
   async import(buffer: Buffer) {

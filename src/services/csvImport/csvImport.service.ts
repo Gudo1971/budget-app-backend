@@ -1,5 +1,5 @@
 import { parseCsv } from "../../scripts/csv.parser";
-import { transactionService } from "../transactions/transaction.service";
+import { transactionService } from "../transactions/transactions.service";
 
 export const csvImportService = {
   async import(buffer: Buffer) {
