@@ -1,4 +1,4 @@
-import { transactionService } from "../transactions/transaction.service";
+import { transactionService } from "../transactions/transactions.service";
 
 export const manualImportService = {
   create(form: any) {

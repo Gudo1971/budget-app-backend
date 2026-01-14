@@ -1,11 +1,11 @@
 import { db } from "../../lib/db";
 import { normalizeDate } from "./transaction.utils";
-import { findOrCreateCategory } from "../categories/category.service";
-import {
-  getCategoryForMerchant,
-  upsertMerchantMemory,
-} from "../merchantMemory/merchantMemory.service";
 import { matchingService } from "../matching/matching.service";
+import { categorizeTransaction } from "../../categorization/categorizeTransaction";
+import {
+  getMerchantMemory,
+  upsertMerchantMemory,
+} from "../../lib/merchantMemory";
 
 // ⭐ Uniforme mapping voor alle transacties
 function mapTransaction(row: any) {
@@ -17,9 +17,8 @@ function mapTransaction(row: any) {
     merchant: row.merchant,
     description: row.description,
     category: {
-      id: row.category_id ?? null,
-      name: row.category_name ?? null,
-      type: row.category_type ?? null,
+      name: row.category ?? null,
+      subcategory: row.subcategory ?? null,
     },
     userId: row.user_id,
   };
@@ -32,20 +31,18 @@ export const transactionService = {
       .prepare(
         `
         SELECT 
-          t.id,
-          t.receipt_id,
-          t.amount,
-          t.date,
-          t.transaction_date,
-          t.merchant,
-          t.description,
-          t.category_id,
-          t.user_id,
-          c.name AS category_name,
-          c.type AS category_type
-        FROM transactions t
-        LEFT JOIN categories c ON c.id = t.category_id
-        ORDER BY t.transaction_date DESC
+          id,
+          receipt_id,
+          amount,
+          date,
+          transaction_date,
+          merchant,
+          description,
+          category,
+          subcategory,
+          user_id
+        FROM transactions
+        ORDER BY transaction_date DESC
       `
       )
       .all();
@@ -58,7 +55,18 @@ export const transactionService = {
   },
 
   // ⭐ CENTRALE CREATE-FLOW (PDF, CSV, manual, AI)
-  create({ receiptId, extracted, form, source }: any) {
+  async create({ receiptId, extracted, form, source }: any) {
+    // ⭐ CSV → normaliseer naar form
+    if (source === "csv") {
+      form = {
+        amount: form.amount,
+        date: form.date,
+        merchant: form.merchant,
+        description: form.description,
+      };
+      extracted = {};
+    }
+
     const rawAmount = form.amount ?? extracted.total ?? 0;
     const amount = -Math.abs(rawAmount);
 
@@ -67,7 +75,6 @@ export const transactionService = {
     );
 
     const merchant: string = form.merchant ?? extracted.merchant ?? "Onbekend";
-
     const description: string =
       form.description || form.merchant || extracted.merchant || "Onbekend";
 
@@ -114,24 +121,16 @@ export const transactionService = {
       };
     }
 
-    // ⭐ Category resolution (form → memory → AI → null)
-    let categoryId: number | null = form.category_id ?? null;
+    // ⭐ Categorisatie-engine gebruiken
+    const categorized = await categorizeTransaction({
+      userId,
+      merchantName: merchant,
+      description,
+      amount,
+      date,
+    });
 
-    if (!categoryId) {
-      const memory = getCategoryForMerchant(userId, merchant);
-      if (memory) categoryId = memory;
-    }
-
-    if (!categoryId) {
-      const raw = extracted.merchant_category?.trim() ?? null;
-      const aiCategory = raw
-        ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase()
-        : null;
-
-      if (aiCategory) {
-        categoryId = findOrCreateCategory(aiCategory);
-      }
-    }
+    const { category, subcategory } = categorized;
 
     // ⭐ Insert transaction
     const stmt = db.prepare(`
@@ -142,10 +141,11 @@ export const transactionService = {
         transaction_date,
         merchant,
         description,
-        category_id,
+        category,
+        subcategory,
         user_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -155,24 +155,13 @@ export const transactionService = {
       date,
       merchant,
       description,
-      categoryId ?? null,
+      category,
+      subcategory,
       userId
     );
 
     // ⭐ Update merchant memory
-    if (categoryId !== null) {
-      upsertMerchantMemory(userId, merchant, categoryId);
-    }
-
-    // ⭐ Fetch category with proper typing
-    const category =
-      categoryId !== null
-        ? (db
-            .prepare("SELECT id, name, type FROM categories WHERE id = ?")
-            .get(categoryId) as
-            | { id: number; name: string; type: string }
-            | undefined)
-        : undefined;
+    upsertMerchantMemory(userId, merchant, category, subcategory);
 
     // ⭐ Uniform return shape
     return {
@@ -184,17 +173,10 @@ export const transactionService = {
         date,
         merchant,
         description,
-        category: category
-          ? {
-              id: category.id,
-              name: category.name,
-              type: category.type,
-            }
-          : {
-              id: null,
-              name: null,
-              type: null,
-            },
+        category: {
+          name: category,
+          subcategory,
+        },
         userId,
       },
       error: null,

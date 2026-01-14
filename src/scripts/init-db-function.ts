@@ -8,7 +8,7 @@ export function initDatabase() {
       type TEXT NOT NULL CHECK(type IN ('variable', 'fixed'))
     );
 
-    CREATE TABLE receipts (
+    CREATE TABLE IF NOT EXISTS receipts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       filename TEXT NOT NULL,
       original_name TEXT NOT NULL,
@@ -16,22 +16,23 @@ export function initDatabase() {
       user_id TEXT NOT NULL,
       ocrText TEXT,
       aiResult TEXT,
-      category TEXT, subCategory TEXT, processed INTEGER DEFAULT 0);
-
-    CREATE TABLE transactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT NOT NULL,
-      description TEXT NOT NULL,
-      amount REAL NOT NULL,
-      category_id INTEGER,
-      merchant TEXT,
       category TEXT,
-      recurring INTEGER DEFAULT 0,
-      user_id TEXT NOT NULL,
-      receipt_id INTEGER, transaction_date TEXT,
-      FOREIGN KEY (category_id) REFERENCES categories(id),
-      FOREIGN KEY (receipt_id) REFERENCES receipts(id)
-    )
+      subCategory TEXT,
+      processed INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      receipt_id INTEGER,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      transaction_date TEXT NOT NULL,
+      merchant TEXT NOT NULL,
+      description TEXT,
+      category TEXT,
+      subcategory TEXT,
+      user_id TEXT NOT NULL
+    );
 
     CREATE TABLE IF NOT EXISTS budgets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,11 +55,14 @@ export function initDatabase() {
       interval TEXT NOT NULL CHECK(interval IN ('monthly', 'yearly'))
     );
 
-    CREATE TABLE merchant_memory (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      category TEXT NOT NULL
-    )
+    CREATE TABLE IF NOT EXISTS merchant_memory (
+      user_id TEXT NOT NULL,
+      merchant TEXT NOT NULL,
+      category TEXT NOT NULL,
+      subcategory TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, merchant)
+    );
 
     CREATE TABLE IF NOT EXISTS savings_goals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,12 +70,6 @@ export function initDatabase() {
       target_amount REAL NOT NULL,
       current_amount REAL NOT NULL,
       deadline TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS merchant_memory (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      category TEXT NOT NULL
     );
   `);
 
