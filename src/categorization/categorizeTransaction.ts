@@ -59,7 +59,9 @@ export async function categorizeTransaction(
 
   console.log("CATEGORIZE INPUT:", { merchantName, description });
 
+  // -----------------------------
   // 1. MEMORY FIRST
+  // -----------------------------
   const memory = getMerchantMemory(userId, merchantName);
   if (memory) {
     console.log("CATEGORIZED RESULT (MEMORY):", memory);
@@ -70,29 +72,60 @@ export async function categorizeTransaction(
     };
   }
 
-  // 2. AI FIRST (zoals vroeger)
+  // -----------------------------
+  // 2. AI FIRST
+  // -----------------------------
   const aiCategory = await aiChooseCategory(merchantName, description);
   console.log("AI CATEGORY:", aiCategory);
+
   let category: Category;
 
   if (isCategory(aiCategory)) {
-    category = aiCategory; // AI blijft leidend
+    category = aiCategory;
   } else {
     console.warn("AI gaf ongeldige categorie:", aiCategory);
-    category = "Overig"; // veilige fallback
+    category = "Overig";
   }
 
   let subcategory = null;
 
-  // 3. HEURISTIEK CORRIGEERT AI
+  // -----------------------------
+  // 3. HEURISTIEK: HUUR
+  // -----------------------------
   if (isHousingRent(merchantName) || isHousingRent(description)) {
     category = "Wonen";
     subcategory = "Huur";
-    console.log("CATEGORIZED RESULT (HEURISTIC):", { category, subcategory });
+    console.log("CATEGORIZED RESULT (HEURISTIC - HUUR):", {
+      category,
+      subcategory,
+    });
     return { category, subcategory, memoryApplied: false };
   }
 
+  // -----------------------------
+  // 3b. HEURISTIEK: KLEDING
+  // -----------------------------
+  const clothingSignals = ["zalando", "h&m", "primark", "c&a", "kleding"];
+  const lowerMerchant = merchantName.toLowerCase();
+  const lowerDesc = description.toLowerCase();
+  const normalizedMerchant = lowerMerchant
+    .replace(/se|payments|online|netherlands|nl/g, "")
+    .replace(/[^a-z]/g, "");
+  if (
+    clothingSignals.some((s) => normalizedMerchant.includes(s)) ||
+    clothingSignals.some((s) => lowerDesc.includes(s))
+  ) {
+    category = "Kleding";
+    subcategory = null;
+    console.log("CATEGORIZED RESULT (HEURISTIC - KLEDING):", {
+      category,
+      subcategory,
+    });
+    return { category, subcategory, memoryApplied: false };
+  }
+  // -----------------------------
   // 4. SUBCATEGORY
+  // -----------------------------
   subcategory = guessSubcategory(category, merchantName, description);
 
   const result = {

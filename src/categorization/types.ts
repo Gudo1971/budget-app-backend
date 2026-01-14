@@ -15,6 +15,7 @@ export type Category =
   | "Boodschappen"
   | "PersoonlijkeVerzorging"
   | "Huishouden"
+  | "Kleding"
   | "Vervoer"
   | "Abonnementen"
   | "VrijeTijd"
