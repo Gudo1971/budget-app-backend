@@ -1,143 +1,207 @@
 import { Router } from "express";
 import { db } from "../../lib/db";
+import { findMatchingTransaction } from "../../ai/matching/findMatchingTransaction";
 
 const router = Router();
 const USER_ID = "demo-user";
 
-// ------------------------------------------------------------
-// POST /receipts/:id/link → bon koppelen aan bestaande transactie
-// ------------------------------------------------------------
-router.post("/:id/link", (req, res) => {
-  const receiptId = req.params.id;
-  const { transactionId } = req.body;
+type ReceiptRow = {
+  id: number;
+  aiResult: string | null;
+  status: string;
+  transaction_id: number | null;
+};
 
-  if (!transactionId) {
-    return res.status(400).json({ error: "transactionId is required" });
-  }
+// ------------------------------------------------------------
+// POST /receipts/:id/create-or-link
+// ------------------------------------------------------------
+router.post("/:id/create-or-link", async (req, res) => {
+  const receiptId = Number(req.params.id);
+  const { userChoice, extracted } = req.body;
 
-  // Check of bon bestaat
+  // 1. Haal bon op
   const receipt = db
-    .prepare("SELECT id FROM receipts WHERE id = ? AND user_id = ?")
-    .get(receiptId, USER_ID);
+    .prepare(
+      `SELECT id, aiResult, status, transaction_id
+     FROM receipts
+     WHERE id = ? AND user_id = ?`
+    )
+    .get(receiptId, USER_ID) as ReceiptRow | undefined;
 
   if (!receipt) {
     return res.status(404).json({ error: "Receipt not found" });
   }
 
-  // Check of transactie bestaat
-  const transaction = db
-    .prepare("SELECT id FROM transactions WHERE id = ? AND user_id = ?")
-    .get(transactionId, USER_ID);
-
-  if (!transaction) {
-    return res.status(404).json({ error: "Transaction not found" });
+  if (!receipt.aiResult) {
+    return res.status(400).json({ error: "Receipt has no AI data" });
   }
 
-  // Koppel bon aan transactie
-  db.prepare(
-    `
-    UPDATE transactions
-    SET receipt_id = ?
-    WHERE id = ? AND user_id = ?
-  `
-  ).run(receiptId, transactionId, USER_ID);
+  const parsed = JSON.parse(receipt.aiResult);
 
-  res.json({
-    success: true,
-    message: "Receipt linked to transaction",
-    transactionId,
-    receiptId,
+  // 2. Zoek naar bestaande transactie
+  const { match, confidence } = await findMatchingTransaction({
+    amount: parsed.total,
+    date: parsed.date,
+    merchant: parsed.merchant,
   });
-});
 
-// ------------------------------------------------------------
-// POST /receipts/:id/create-transaction
-// → nieuwe transactie aanmaken + bon koppelen
-// ------------------------------------------------------------
-router.post("/:id/create-transaction", (req, res) => {
-  const receiptId = req.params.id;
-  const { description, amount, date, merchant, category_id } = req.body;
-
-  if (!amount || !date) {
-    return res.status(400).json({
-      error: "amount and date are required to create a transaction",
+  // ------------------------------------------------------------
+  // CASE A — MATCH GEVONDEN, MAAR GEBRUIKER HEEFT NOG NIET GEKOZEN
+  // ------------------------------------------------------------
+  if (match && !userChoice) {
+    return res.json({
+      action: "ask-user",
+      match,
+      confidence,
+      message:
+        "Er bestaat al een transactie die lijkt te horen bij deze bon. Wil je koppelen?",
     });
   }
 
-  // Check of bon bestaat
-  const receipt = db
-    .prepare("SELECT id FROM receipts WHERE id = ? AND user_id = ?")
-    .get(receiptId, USER_ID);
+  // ------------------------------------------------------------
+  // CASE B — MATCH GEVONDEN, GEBRUIKER ZEGT JA
+  // ------------------------------------------------------------
+  if (match && userChoice === "yes") {
+    const txId = Number(match.id);
 
-  if (!receipt) {
-    return res.status(404).json({ error: "Receipt not found" });
+    db.prepare(
+      `UPDATE receipts
+       SET transaction_id = ?, status = 'archived'
+       WHERE id = ? AND user_id = ?`
+    ).run(txId, receiptId, USER_ID);
+
+    db.prepare(
+      `UPDATE transactions
+       SET receipt_id = ?
+       WHERE id = ? AND user_id = ?`
+    ).run(receiptId, txId, USER_ID);
+
+    return res.json({
+      action: "linked-existing",
+      success: true,
+      transaction: { ...match, id: txId },
+    });
   }
 
-  // Nieuwe transactie aanmaken
-  const stmt = db.prepare(
-    `
-    INSERT INTO transactions (description, amount, date, merchant, category_id, user_id, receipt_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `
+  // ------------------------------------------------------------
+  // CASE C — MATCH GEVONDEN, GEBRUIKER ZEGT NEE
+  // ------------------------------------------------------------
+  if (match && userChoice === "no") {
+    db.prepare(
+      `UPDATE receipts
+       SET status = 'in_afwachting'
+       WHERE id = ? AND user_id = ?`
+    ).run(receiptId, USER_ID);
+
+    return res.json({
+      action: "moved-to-awaiting",
+      success: true,
+      message: "Bon is verplaatst naar archief met status 'in afwachting'.",
+    });
+  }
+
+  // ------------------------------------------------------------
+  // CASE D — GEEN MATCH → NIEUWE TRANSACTIE MAKEN
+  // ------------------------------------------------------------
+  if (!extracted) {
+    return res.status(400).json({
+      error: "Missing extracted data for duplicate check",
+    });
+  }
+
+  const d = extracted.date.split("T")[0];
+  const amount = -Math.abs(extracted.total);
+  const merchant = extracted.merchant;
+
+  // DUPLICATE CHECK
+  const duplicate = db
+    .prepare(
+      `SELECT id FROM transactions
+     WHERE user_id = ?
+       AND amount = ?
+       AND merchant = ?
+       AND date = ?`
+    )
+    .get(USER_ID, amount, merchant, d) as { id: number } | undefined;
+
+  if (duplicate) {
+    return res.status(409).json({
+      action: "duplicate",
+      success: false,
+      transactionId: duplicate.id,
+    });
+  }
+
+  // NIEUWE TRANSACTIE
+  const insert = db.prepare(
+    `INSERT INTO transactions (
+      amount, date, transaction_date,
+      merchant, description, user_id, receipt_id
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
 
-  const result = stmt.run(
-    description || merchant || "Onbekende transactie",
+  const result = insert.run(
     amount,
-    date,
-    merchant || null,
-    category_id || null,
+    d,
+    d,
+    merchant,
+    merchant,
     USER_ID,
     receiptId
   );
 
-  const newTransactionId = result.lastInsertRowid;
+  const newId = Number(result.lastInsertRowid);
 
-  res.json({
+  // BON KOPPELEN + ARCHIVEREN
+  db.prepare(
+    `UPDATE receipts
+     SET transaction_id = ?, status = 'archived'
+     WHERE id = ? AND user_id = ?`
+  ).run(newId, receiptId, USER_ID);
+
+  return res.json({
+    action: "created-new",
     success: true,
-    message: "New transaction created and receipt linked",
-    transactionId: newTransactionId,
-    receiptId,
+    transactionId: newId,
   });
 });
 
 // ------------------------------------------------------------
-// POST /transactions/:id/category → gebruiker bevestigt categorie
+// POST /receipts/:id/link-existing
 // ------------------------------------------------------------
-router.post("/category/confirm", (req, res) => {
-  const { transactionId, category_id, merchant } = req.body;
+router.post("/:id/link-existing", (req, res) => {
+  const receiptId = Number(req.params.id);
+  const { transactionId } = req.body;
 
-  if (!transactionId || !category_id) {
-    return res.status(400).json({
-      error: "transactionId and category_id are required",
-    });
+  if (!transactionId) {
+    return res.status(400).json({ error: "Missing transactionId" });
   }
 
-  // Update transactie
-  db.prepare(
-    `
-    UPDATE transactions
-    SET category_id = ?
-    WHERE id = ? AND user_id = ?
-  `
-  ).run(category_id, transactionId, USER_ID);
-
-  // Merchant-memory bijwerken (optioneel merchant kan null zijn)
-  if (merchant) {
+  try {
     db.prepare(
-      `
-      INSERT OR REPLACE INTO merchant_memory (merchant, category_id, user_id)
-      VALUES (?, ?, ?)
-    `
-    ).run(merchant, category_id, USER_ID);
-  }
+      `UPDATE receipts
+       SET transaction_id = ?, status = 'archived'
+       WHERE id = ? AND user_id = ?`
+    ).run(transactionId, receiptId, USER_ID);
 
-  res.json({
-    success: true,
-    message: "Category confirmed and merchant memory updated",
-    transactionId,
-    category_id,
-  });
+    db.prepare(
+      `UPDATE transactions
+       SET receipt_id = ?
+       WHERE id = ? AND user_id = ?`
+    ).run(receiptId, transactionId, USER_ID);
+
+    return res.json({
+      action: "linked-existing",
+      success: true,
+      transactionId,
+    });
+  } catch (err) {
+    console.error("Error linking existing transaction:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to link existing transaction" });
+  }
 });
 
 export default router;

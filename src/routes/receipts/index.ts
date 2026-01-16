@@ -28,6 +28,8 @@ type ReceiptRecord = {
   original_name: string;
   uploaded_at: string;
   user_id: string;
+  status: string;
+  transaction_id?: number | null;
   ocrText?: string | null;
   aiResult?: string | null;
 };
@@ -39,7 +41,20 @@ router.get("/", (req: Request, res: Response) => {
   try {
     const receipts = db
       .prepare(
-        "SELECT id, filename, original_name, uploaded_at, ocrText, aiResult FROM receipts WHERE user_id = ? ORDER BY uploaded_at DESC"
+        `
+        SELECT 
+          id, 
+          filename, 
+          original_name, 
+          uploaded_at, 
+          status,
+          transaction_id,
+          ocrText, 
+          aiResult 
+        FROM receipts 
+        WHERE user_id = ? 
+        ORDER BY uploaded_at DESC
+        `
       )
       .all(USER_ID) as ReceiptRecord[];
 
@@ -57,7 +72,19 @@ router.get("/:id", (req: Request, res: Response) => {
 
   const receipt = db
     .prepare(
-      "SELECT id, filename, original_name, uploaded_at, ocrText, aiResult FROM receipts WHERE id = ? AND user_id = ?"
+      `
+      SELECT 
+        id, 
+        filename, 
+        original_name, 
+        uploaded_at, 
+        status,
+        transaction_id,
+        ocrText, 
+        aiResult 
+      FROM receipts 
+      WHERE id = ? AND user_id = ?
+      `
     )
     .get(id, USER_ID) as ReceiptRecord | undefined;
 
@@ -74,7 +101,19 @@ router.get("/:id/file", (req: Request, res: Response) => {
 
   const receipt = db
     .prepare(
-      "SELECT id, filename, original_name, uploaded_at, ocrText, aiResult FROM receipts WHERE id = ? AND user_id = ?"
+      `
+      SELECT 
+        id, 
+        filename, 
+        original_name, 
+        uploaded_at, 
+        status,
+        transaction_id,
+        ocrText, 
+        aiResult 
+      FROM receipts 
+      WHERE id = ? AND user_id = ?
+      `
     )
     .get(id, USER_ID) as ReceiptRecord | undefined;
 
@@ -106,7 +145,11 @@ router.post(
       return res.status(400).json({ error: "No files uploaded" });
 
     const stmt = db.prepare(
-      "INSERT INTO receipts (filename, original_name, user_id) VALUES (?, ?, ?)"
+      `
+      INSERT INTO receipts 
+      (filename, original_name, user_id, status) 
+      VALUES (?, ?, ?, 'pending')
+      `
     );
 
     for (const file of files) {
@@ -115,7 +158,20 @@ router.post(
 
     const receipts = db
       .prepare(
-        "SELECT id, filename, original_name, uploaded_at, ocrText, aiResult FROM receipts WHERE user_id = ? ORDER BY uploaded_at DESC"
+        `
+        SELECT 
+          id, 
+          filename, 
+          original_name, 
+          uploaded_at, 
+          status,
+          transaction_id,
+          ocrText, 
+          aiResult 
+        FROM receipts 
+        WHERE user_id = ? 
+        ORDER BY uploaded_at DESC
+        `
       )
       .all(USER_ID) as ReceiptRecord[];
 
@@ -131,7 +187,19 @@ router.delete("/:id", (req: Request, res: Response) => {
 
   const receipt = db
     .prepare(
-      "SELECT id, filename, original_name, uploaded_at, ocrText, aiResult FROM receipts WHERE id = ? AND user_id = ?"
+      `
+      SELECT 
+        id, 
+        filename, 
+        original_name, 
+        uploaded_at, 
+        status,
+        transaction_id,
+        ocrText, 
+        aiResult 
+      FROM receipts 
+      WHERE id = ? AND user_id = ?
+      `
     )
     .get(id, USER_ID) as ReceiptRecord | undefined;
 
@@ -147,6 +215,39 @@ router.delete("/:id", (req: Request, res: Response) => {
 
   res.json({ message: "Receipt deleted" });
 });
+
+// ------------------------------------------------------------
+// PUT /receipts/:id/link → koppel aan transactie
+// ------------------------------------------------------------
+router.put("/:id/link", (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { transactionId } = req.body;
+
+  if (!transactionId) {
+    return res.status(400).json({ error: "transactionId is required" });
+  }
+
+  const receipt = db
+    .prepare("SELECT id FROM receipts WHERE id = ? AND user_id = ?")
+    .get(id, USER_ID);
+
+  if (!receipt) {
+    return res.status(404).json({ error: "Receipt not found" });
+  }
+
+  db.prepare(
+    `
+    UPDATE receipts
+    SET 
+      status = 'linked',
+      transaction_id = ?
+    WHERE id = ?
+    `
+  ).run(transactionId, id);
+
+  res.json({ success: true, receiptId: id, transactionId });
+});
+
 // ------------------------------------------------------------
 // GET /receipts/:id/match → AI matchen met transacties
 // ------------------------------------------------------------
@@ -155,7 +256,19 @@ router.get("/:id/match", async (req: Request, res: Response) => {
 
   const receipt = db
     .prepare(
-      "SELECT id, filename, original_name, uploaded_at, ocrText, aiResult FROM receipts WHERE id = ? AND user_id = ?"
+      `
+      SELECT 
+        id, 
+        filename, 
+        original_name, 
+        uploaded_at, 
+        status,
+        transaction_id,
+        ocrText, 
+        aiResult 
+      FROM receipts 
+      WHERE id = ? AND user_id = ?
+      `
     )
     .get(id, USER_ID) as ReceiptRecord | undefined;
 
@@ -163,7 +276,6 @@ router.get("/:id/match", async (req: Request, res: Response) => {
     return res.status(404).json({ error: "Receipt not found" });
   }
 
-  // aiResult bevat jouw extracted JSON
   let extracted;
   try {
     extracted = JSON.parse(receipt.aiResult ?? "{}");

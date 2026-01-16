@@ -8,7 +8,7 @@ export function initDatabase() {
       type TEXT NOT NULL CHECK(type IN ('variable', 'fixed'))
     );
 
-    CREATE TABLE IF NOT EXISTS receipts (
+CREATE TABLE receipts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       filename TEXT NOT NULL,
       original_name TEXT NOT NULL,
@@ -18,8 +18,9 @@ export function initDatabase() {
       aiResult TEXT,
       category TEXT,
       subCategory TEXT,
-      processed INTEGER DEFAULT 0
-    );
+      processed INTEGER DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending', transaction_id INTEGER
+      );
 
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
