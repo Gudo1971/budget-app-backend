@@ -1,29 +1,26 @@
-import OpenAI from "openai";
-import { ZodSchema } from "zod";
-
-export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+// src/ai/engine.ts
+import { z } from "zod";
+import { openai } from "./client";
 
 export async function runExtraction<T>(
   prompt: string,
-  schema: ZodSchema<T>
+  schema: z.ZodType<T>
 ): Promise<T> {
-  const response = await openai.responses.parse({
-    model: "gpt-4.1",
-    input: [
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [
       {
         role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: prompt,
-          },
-        ],
+        content: prompt,
       },
     ],
-    schema,
   });
 
-  return response.output as T;
+  const raw = completion.choices[0]?.message?.content;
+  console.log("RAW AI OUTPUT:", raw);
+
+  if (!raw) throw new Error("Lege AI-respons");
+
+  const parsed = JSON.parse(raw);
+  return schema.parse(parsed);
 }

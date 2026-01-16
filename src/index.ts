@@ -13,10 +13,11 @@ import budgetRouter from "./routes/budgets";
 import fixedCostsRouter from "./routes/fixed-costs";
 import savingsGoalsRouter from "./routes/savings-goals";
 import budgetCategoriesRouter from "./routes/budget-categories";
-import splitTransactionsRouter from "./routes/split-transactions";
+import { splitTransactionsRouter } from "./routes/split-transactions";
 import receiptsRouter from "./routes/receipts";
 import itemRoutes from "./routes/items";
 import merchantCategoryRoute from "./routes/merchant-categories";
+import { aiPdfExtractRouter } from "./routes/ai/aiPdfextract";
 
 import { migrateReceiptsTable } from "./lib/migrations";
 
@@ -33,9 +34,12 @@ app.use(
     credentials: true,
   })
 );
-
-app.use(express.json());
 app.use(requestLogger);
+
+app.use("/api/ai", aiPdfExtractRouter);
+
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 // ⭐ API ROUTES (nu op de juiste plek)
 app.use("/api/transactions", transactionsRouter);
