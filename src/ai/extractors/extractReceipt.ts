@@ -1,4 +1,4 @@
-import { runExtraction } from "../engine";
+import { runExtraction } from "../engine/engine";
 import { receiptExtractionPrompt } from "../prompts/receiptExtractionPrompt";
 import { ReceiptSchema, Receipt } from "../schemas/ReceiptSchema";
 

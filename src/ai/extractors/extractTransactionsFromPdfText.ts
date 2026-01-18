@@ -1,4 +1,4 @@
-import { runExtraction } from "../engine";
+import { runExtraction } from "../engine/engine";
 import { TransactionSchema } from "../schemas/TransactionSchema";
 import { z } from "zod";
 

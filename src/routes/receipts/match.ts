@@ -1,33 +1,39 @@
 import { Router } from "express";
 import { db } from "../../lib/db";
 import { findMatchingTransaction } from "../../ai/matching/findMatchingTransaction";
+import { MatchResult } from "../../types/matching";
 
 const router = Router();
 const USER_ID = "demo-user";
 
 type ReceiptRecord = {
   id: number;
-  filename: string;
-  original_name: string;
-  uploaded_at: string;
-  user_id: string;
-  ocrText?: string | null;
   aiResult?: string | null;
 };
 
 router.get("/:id/match", async (req, res) => {
-  const { id } = req.params;
+  const receiptId = Number(req.params.id);
 
+  if (!receiptId) {
+    return res.status(400).json({ error: "Invalid receipt ID" });
+  }
+
+  // 1. RECEIPT OPHALEN
   const receipt = db
     .prepare(
-      "SELECT id, filename, original_name, uploaded_at, ocrText, aiResult FROM receipts WHERE id = ? AND user_id = ?"
+      `
+      SELECT id, aiResult
+      FROM receipts
+      WHERE id = ? AND user_id = ?
+      `,
     )
-    .get(id, USER_ID) as ReceiptRecord | undefined;
+    .get(receiptId, USER_ID) as ReceiptRecord | undefined;
 
   if (!receipt) {
     return res.status(404).json({ error: "Receipt not found" });
   }
 
+  // 2. AI RESULT PARSEN
   let extracted: any = {};
   try {
     extracted = JSON.parse(receipt.aiResult ?? "{}");
@@ -35,13 +41,23 @@ router.get("/:id/match", async (req, res) => {
     extracted = {};
   }
 
-  const matchResult = await findMatchingTransaction({
-    amount: extracted.total ?? 0,
-    date: extracted.date ?? "",
-    merchant: extracted.merchant ?? "",
-  });
+  // 3. VALIDATIE — AI RESULT MOET BESTAAN
+  if (!extracted.total || !extracted.date || !extracted.merchant) {
+    return res.status(400).json({
+      error: "Receipt has no AI analysis yet. Run /analyze first.",
+    });
+  }
 
-  res.json(matchResult);
+  // 4. MATCHING ENGINE
+  const matchResult = (await findMatchingTransaction({
+    receiptId: receipt.id,
+    amount: extracted.total,
+    date: extracted.date,
+    merchant: extracted.merchant,
+  })) as MatchResult;
+
+  // 5. TERUGSTUREN — DIRECT HET MATCHRESULT
+  return res.json(matchResult);
 });
 
 export default router;

@@ -1,88 +1,45 @@
-import OpenAI from "openai";
-import fs from "fs";
-import { receiptExtractionPrompt } from "../prompts/receiptExtractionPrompt";
-import { extractTextFromResponse } from "../helpers/extractTextFromResponse";
-
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-function stripCodeFences(text: string): string {
-  return text
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
-}
+import { runVisionExtraction } from "../engine/runVisionExtraction";
+import { ReceiptJson } from "../../types/receipts";
 
 export async function extractReceiptFromImage(
-  filePath: string
-): Promise<{ ocrText: string; parsedJson: any }> {
-  try {
-    // 1. Upload de afbeelding naar OpenAI
-    const uploaded = await client.files.create({
-      file: fs.createReadStream(filePath),
-      purpose: "vision",
-    });
+  image: Buffer,
+): Promise<{ ocrText: string; parsedJson: ReceiptJson }> {
+  const base64 = image.toString("base64");
 
-    // 2. OCR extractie
-    const ocrResponse = await client.responses.create({
-      model: "gpt-4o-mini",
-      input: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: "Extract all text from this receipt. Return ONLY the text.",
-            },
-            {
-              type: "input_image",
-              file_id: uploaded.id,
-              detail: "high",
-            },
-          ],
-        },
-      ],
-    });
+  const prompt = `
+You are a receipt extraction and categorization engine.
+Extract ALL structured data from this receipt image.
+Return ONLY valid JSON with the following fields:
 
-    const ocrText = extractTextFromResponse(ocrResponse) ?? "";
-
-    // 3. JSON parsing
-    const jsonResponse = await client.responses.create({
-      model: "gpt-4o-mini",
-      input: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: receiptExtractionPrompt(ocrText),
-            },
-          ],
-        },
-      ],
-    });
-
-    let parsedJson: any = null;
-
-    try {
-      const cleaned = stripCodeFences(jsonResponse.output_text ?? "");
-      parsedJson = JSON.parse(cleaned);
-    } catch {
-      parsedJson = {
-        error: "Failed to parse JSON",
-        raw: jsonResponse.output_text,
-      };
+{
+  "merchant": string | null,
+  "merchant_category": string | null,
+  "category": string | null,
+  "subcategory": string | null,
+  "date": string | null,
+  "total": number | null,
+  "items": [
+    {
+      "name": string,
+      "quantity": number,
+      "price": number,
+      "total": number
     }
+  ]
+}
 
-    return { ocrText, parsedJson };
-  } catch (err: any) {
-    console.error("OpenAI extract error:", err);
+Rules:
+- ALWAYS include all fields, even if null.
+- Determine merchant_category based on merchant name and items.
+- Determine category and subcategory using common budgeting categories (e.g. restaurant, groceries, transport, clothing, electronics, health, subscriptions).
+- If the date is unclear, estimate it from the receipt layout or timestamps.
+- Do NOT include any text outside the JSON.
+`;
 
-    return {
-      ocrText: "",
-      parsedJson: {
-        error: "OpenAI request failed",
-        details: err?.message ?? err,
-      },
-    };
-  }
+  const parsedJson = (await runVisionExtraction(base64, prompt)) as ReceiptJson;
+
+  return {
+    ocrText: "",
+    parsedJson,
+  };
 }

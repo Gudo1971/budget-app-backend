@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { db } from "../../lib/db";
 import { findMatchingTransaction } from "../../ai/matching/findMatchingTransaction";
+import smartUploadReceipt from "./upload";
 
 const router = Router();
 const USER_ID = "demo-user";
@@ -54,7 +55,7 @@ router.get("/", (req: Request, res: Response) => {
         FROM receipts 
         WHERE user_id = ? 
         ORDER BY uploaded_at DESC
-        `
+        `,
       )
       .all(USER_ID) as ReceiptRecord[];
 
@@ -84,7 +85,7 @@ router.get("/:id", (req: Request, res: Response) => {
         aiResult 
       FROM receipts 
       WHERE id = ? AND user_id = ?
-      `
+      `,
     )
     .get(id, USER_ID) as ReceiptRecord | undefined;
 
@@ -113,7 +114,7 @@ router.get("/:id/file", (req: Request, res: Response) => {
         aiResult 
       FROM receipts 
       WHERE id = ? AND user_id = ?
-      `
+      `,
     )
     .get(id, USER_ID) as ReceiptRecord | undefined;
 
@@ -125,7 +126,7 @@ router.get("/:id/file", (req: Request, res: Response) => {
 
   res.setHeader(
     "Content-Disposition",
-    `attachment; filename="${receipt.original_name}"`
+    `attachment; filename="${receipt.original_name}"`,
   );
   res.setHeader("Content-Type", "application/octet-stream");
 
@@ -133,10 +134,10 @@ router.get("/:id/file", (req: Request, res: Response) => {
 });
 
 // ------------------------------------------------------------
-// POST /receipts/upload → upload meerdere bonnen
+// POST /receipts/upload → BULK UPLOAD
 // ------------------------------------------------------------
 router.post(
-  "/upload",
+  "/upload-bulk",
   upload.array("files", 20),
   (req: Request, res: Response) => {
     const files = req.files as Express.Multer.File[];
@@ -149,7 +150,7 @@ router.post(
       INSERT INTO receipts 
       (filename, original_name, user_id, status) 
       VALUES (?, ?, ?, 'pending')
-      `
+      `,
     );
 
     for (const file of files) {
@@ -171,13 +172,18 @@ router.post(
         FROM receipts 
         WHERE user_id = ? 
         ORDER BY uploaded_at DESC
-        `
+        `,
       )
       .all(USER_ID) as ReceiptRecord[];
 
     res.json({ message: "Receipts uploaded", receipts });
-  }
+  },
 );
+
+// ------------------------------------------------------------
+// POST /receipts/upload/smart → SLIMME UPLOAD
+// ------------------------------------------------------------
+router.post("/upload/smart", upload.single("file"), smartUploadReceipt);
 
 // ------------------------------------------------------------
 // DELETE /receipts/:id
@@ -199,7 +205,7 @@ router.delete("/:id", (req: Request, res: Response) => {
         aiResult 
       FROM receipts 
       WHERE id = ? AND user_id = ?
-      `
+      `,
     )
     .get(id, USER_ID) as ReceiptRecord | undefined;
 
@@ -210,7 +216,7 @@ router.delete("/:id", (req: Request, res: Response) => {
 
   db.prepare("DELETE FROM receipts WHERE id = ? AND user_id = ?").run(
     id,
-    USER_ID
+    USER_ID,
   );
 
   res.json({ message: "Receipt deleted" });
@@ -229,7 +235,7 @@ router.put("/:id/link", (req: Request, res: Response) => {
 
   const receipt = db
     .prepare("SELECT id FROM receipts WHERE id = ? AND user_id = ?")
-    .get(id, USER_ID);
+    .get(id, USER_ID) as { id: number } | undefined;
 
   if (!receipt) {
     return res.status(404).json({ error: "Receipt not found" });
@@ -242,7 +248,7 @@ router.put("/:id/link", (req: Request, res: Response) => {
       status = 'linked',
       transaction_id = ?
     WHERE id = ?
-    `
+    `,
   ).run(transactionId, id);
 
   res.json({ success: true, receiptId: id, transactionId });
@@ -268,7 +274,7 @@ router.get("/:id/match", async (req: Request, res: Response) => {
         aiResult 
       FROM receipts 
       WHERE id = ? AND user_id = ?
-      `
+      `,
     )
     .get(id, USER_ID) as ReceiptRecord | undefined;
 
@@ -284,6 +290,7 @@ router.get("/:id/match", async (req: Request, res: Response) => {
   }
 
   const matchResult = await findMatchingTransaction({
+    receiptId: receipt.id,
     amount: extracted.total ?? 0,
     date: extracted.date ?? "",
     merchant: extracted.merchant ?? "",
