@@ -18,8 +18,12 @@ import receiptsRouter from "./routes/receipts";
 import itemRoutes from "./routes/items";
 import merchantCategoryRoute from "./routes/merchant-categories";
 import { aiPdfExtractRouter } from "./routes/ai/aiPdfextract";
+import smartUploadReceipt from "./routes/receipts/upload";
+import categorizeRouter from "./routes/categorize";
 
 import { migrateReceiptsTable } from "./lib/migrations";
+import archiveRoutes from "./routes/receipts/archive";
+import linkRoutes from "./routes/receipts/link";
 
 // ⭐ Migraties uitvoeren
 migrateReceiptsTable();
@@ -32,7 +36,7 @@ app.use(
   cors({
     origin: "http://localhost:5173",
     credentials: true,
-  })
+  }),
 );
 app.use(requestLogger);
 
@@ -52,7 +56,10 @@ app.use("/api/split-transactions", splitTransactionsRouter);
 app.use("/api/receipts", receiptsRouter);
 app.use("/api/items", itemRoutes);
 app.use("/api/merchant-categories", merchantCategoryRoute);
-
+app.use("/api/receipts", archiveRoutes);
+app.use("/api/receipts", linkRoutes);
+app.post("/api/receipts/upload", smartUploadReceipt);
+app.use("/api/categorize", categorizeRouter);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;

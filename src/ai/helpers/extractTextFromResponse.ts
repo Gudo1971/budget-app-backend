@@ -1,5 +1,3 @@
-// src/routes/ai/extractTextFromResponse.ts
-
 function clean(text: string): string {
   return text.trim();
 }
@@ -18,7 +16,15 @@ export function extractTextFromResponse(response: any): string | null {
     if (joined.length > 0) return joined;
   }
 
-  // 2. output[*].text (veelvoorkomend)
+  // 2. OpenAI chat-style: choices[*].message.content
+  if (Array.isArray(response.choices)) {
+    for (const choice of response.choices) {
+      const content = choice?.message?.content;
+      if (typeof content === "string") return clean(content);
+    }
+  }
+
+  // 3. output[*].text
   if (Array.isArray(response.output)) {
     for (const block of response.output) {
       if (typeof block?.text === "string") {
@@ -27,7 +33,7 @@ export function extractTextFromResponse(response: any): string | null {
     }
   }
 
-  // 3. Vision-style: output[*].content[*].text
+  // 4. Vision-style: output[*].content[*].text
   if (Array.isArray(response.output)) {
     for (const block of response.output) {
       if (Array.isArray(block?.content)) {
@@ -41,18 +47,36 @@ export function extractTextFromResponse(response: any): string | null {
         }
       }
 
-      // 4. content direct als string
+      // 5. content direct als string
       if (typeof block?.content === "string") {
         return clean(block.content);
       }
 
-      // 5. content als array van strings
+      // 6. content als array van strings
       if (Array.isArray(block?.content)) {
         const strings = block.content.filter((x: any) => typeof x === "string");
-
         if (strings.length > 0) {
           return clean(strings.join("\n"));
         }
+      }
+    }
+  }
+
+  // 7. Fallback: response.text
+  if (typeof response.text === "string") {
+    return clean(response.text);
+  }
+
+  // 8. Fallback: response.content (string)
+  if (typeof response.content === "string") {
+    return clean(response.content);
+  }
+
+  // 9. Fallback: response.content[*].text
+  if (Array.isArray(response.content)) {
+    for (const c of response.content) {
+      if (typeof c?.text === "string") {
+        return clean(c.text);
       }
     }
   }

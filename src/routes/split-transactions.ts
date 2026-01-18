@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { openai } from "../ai/client";
+import { openai } from "../ai/engine/client";
 import { Router } from "express";
 import { db } from "../lib/db";
 import type { Transaction } from "../types/Transaction";

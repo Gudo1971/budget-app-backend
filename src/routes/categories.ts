@@ -6,15 +6,22 @@ const router = Router();
 // GET /categories → alle categorieën ophalen
 router.get("/", (req, res) => {
   try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: "Missing userId" });
+    }
+
     const categories = db
       .prepare(
         `
-      SELECT id, name, type
-      FROM categories
-      ORDER BY name ASC
-    `
+        SELECT id, name
+        FROM categories
+        WHERE user_id = ?
+        ORDER BY name ASC
+      `,
       )
-      .all();
+      .all(userId);
 
     res.json(categories);
   } catch (error) {
@@ -26,23 +33,23 @@ router.get("/", (req, res) => {
 // POST /categories → nieuwe categorie toevoegen
 router.post("/", (req, res) => {
   try {
-    const { name, type } = req.body;
+    const { userId, name } = req.body;
 
-    if (!name || !type) {
-      return res.status(400).json({ error: "Missing required fields" });
+    if (!userId || !name) {
+      return res.status(400).json({ error: "Missing userId or name" });
     }
 
     const stmt = db.prepare(`
-      INSERT INTO categories (name, type)
-      VALUES (?, ?)
+      INSERT INTO categories (user_id, name, type)
+      VALUES (?, ?, 'custom')
     `);
 
-    const result = stmt.run(name, type);
+    const result = stmt.run(userId, name.trim());
 
     res.json({
       id: result.lastInsertRowid,
-      name,
-      type,
+      name: name.trim(),
+      type: "custom",
     });
   } catch (error) {
     console.error("Error creating category:", error);

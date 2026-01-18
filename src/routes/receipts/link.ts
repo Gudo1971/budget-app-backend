@@ -1,143 +1,151 @@
 import { Router } from "express";
 import { db } from "../../lib/db";
+import { normalizeMerchant } from "../../utils/merchant";
+import { updateMerchantMemory } from "../../utils/merchantMemory";
+import { ParsedAIResult } from "../../types/ParsedAIResult";
+import { ReceiptRecord } from "../../types/ReceiptRecord";
 
 const router = Router();
 const USER_ID = "demo-user";
+console.log("LINK ROUTE HIT");
 
-// ------------------------------------------------------------
-// POST /receipts/:id/link → bon koppelen aan bestaande transactie
-// ------------------------------------------------------------
-router.post("/:id/link", (req, res) => {
-  const receiptId = req.params.id;
-  const { transactionId } = req.body;
+router.post("/:id/link", async (req, res) => {
+  try {
+    const receiptId = Number(req.params.id);
+    const USER_ID = req.body.userId || "demo-user";
+    // 1. Haal receipt op
+    const receipt = db
+      .prepare("SELECT * FROM receipts WHERE id = ? AND user_id = ?")
+      .get(receiptId, USER_ID) as ReceiptRecord | undefined;
 
-  if (!transactionId) {
-    return res.status(400).json({ error: "transactionId is required" });
-  }
+    if (!receipt) {
+      return res.status(404).json({ error: "Receipt not found" });
+    }
 
-  // Check of bon bestaat
-  const receipt = db
-    .prepare("SELECT id FROM receipts WHERE id = ? AND user_id = ?")
-    .get(receiptId, USER_ID);
+    if (!receipt.aiResult) {
+      return res.status(400).json({ error: "Receipt has no AI result yet" });
+    }
 
-  if (!receipt) {
-    return res.status(404).json({ error: "Receipt not found" });
-  }
+    const parsed = JSON.parse(receipt.aiResult) as ParsedAIResult;
 
-  // Check of transactie bestaat
-  const transaction = db
-    .prepare("SELECT id FROM transactions WHERE id = ? AND user_id = ?")
-    .get(transactionId, USER_ID);
+    // 2. Normaliseer amount
+    const rawAmount = parsed.total;
+    const cleanedAmount = String(rawAmount)
+      .replace(/[^\d.,-]/g, "")
+      .replace(",", ".");
+    const normalizedAmount = Number(cleanedAmount);
 
-  if (!transaction) {
-    return res.status(404).json({ error: "Transaction not found" });
-  }
+    if (!normalizedAmount || isNaN(normalizedAmount)) {
+      throw new Error(`Invalid amount extracted: ${rawAmount}`);
+    }
 
-  // Koppel bon aan transactie
-  db.prepare(
-    `
-    UPDATE transactions
-    SET receipt_id = ?
-    WHERE id = ? AND user_id = ?
-  `
-  ).run(receiptId, transactionId, USER_ID);
+    // 3. Normaliseer date
+    // 3. Normaliseer date (UI > AI > error)
+    const rawDate = req.body.date || parsed.date || parsed.purchase_date;
 
-  res.json({
-    success: true,
-    message: "Receipt linked to transaction",
-    transactionId,
-    receiptId,
-  });
-});
+    if (!rawDate) {
+      throw new Error("No date provided");
+    }
 
-// ------------------------------------------------------------
-// POST /receipts/:id/create-transaction
-// → nieuwe transactie aanmaken + bon koppelen
-// ------------------------------------------------------------
-router.post("/:id/create-transaction", (req, res) => {
-  const receiptId = req.params.id;
-  const { description, amount, date, merchant, category_id } = req.body;
+    const normalizedDate = new Date(rawDate).toISOString().slice(0, 10);
 
-  if (!amount || !date) {
-    return res.status(400).json({
-      error: "amount and date are required to create a transaction",
+    // 4. Normaliseer merchant
+    const rawMerchant = parsed.merchant;
+    if (!rawMerchant || rawMerchant.trim() === "") {
+      throw new Error("No merchant extracted from receipt");
+    }
+
+    const normalizedMerchant = normalizeMerchant(rawMerchant);
+
+    // 5. Bepaal categorieën
+    const finalCategory =
+      req.body.category ||
+      parsed.category ||
+      parsed.merchant_category ||
+      "Uncategorized";
+
+    const finalSubcategory =
+      req.body.subcategory || parsed.subcategory || parsed.subCategory || null;
+
+    const finalMerchantCategory = parsed.merchant_category || null;
+
+    // 6. Insert transaction (INCLUSIEF categorie)
+    const insert = db.prepare(`
+      INSERT INTO transactions (
+        amount,
+        date,
+        transaction_date,
+        merchant,
+        description,
+        category,
+        subcategory,
+        user_id,
+        receipt_id
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = insert.run(
+      normalizedAmount,
+      normalizedDate,
+      normalizedDate,
+      normalizedMerchant,
+      normalizedMerchant,
+      finalCategory,
+      finalSubcategory,
+      USER_ID,
+      receiptId,
+    );
+
+    const newTransactionId = result.lastInsertRowid;
+
+    // 7. Update merchant memory
+    updateMerchantMemory({
+      db,
+      userId: USER_ID,
+      merchant: normalizedMerchant,
+      category: finalCategory,
+      subcategory: finalSubcategory,
     });
-  }
 
-  // Check of bon bestaat
-  const receipt = db
-    .prepare("SELECT id FROM receipts WHERE id = ? AND user_id = ?")
-    .get(receiptId, USER_ID);
+    // 8. Update receipt (INCLUSIEF categorie)
+    const update = db.prepare(`
+      UPDATE receipts
+      SET 
+        transaction_id = ?, 
+        status = 'archived',
+        category = ?,
+        subCategory = ?,
+        merchant_category = ?
+      WHERE id = ? AND user_id = ?
+    `);
 
-  if (!receipt) {
-    return res.status(404).json({ error: "Receipt not found" });
-  }
+    const updateResult = update.run(
+      newTransactionId,
+      finalCategory,
+      finalSubcategory,
+      finalMerchantCategory,
+      receiptId,
+      USER_ID,
+    );
 
-  // Nieuwe transactie aanmaken
-  const stmt = db.prepare(
-    `
-    INSERT INTO transactions (description, amount, date, merchant, category_id, user_id, receipt_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `
-  );
+    if (updateResult.changes === 0) {
+      throw new Error("Receipt update failed");
+    }
 
-  const result = stmt.run(
-    description || merchant || "Onbekende transactie",
-    amount,
-    date,
-    merchant || null,
-    category_id || null,
-    USER_ID,
-    receiptId
-  );
-
-  const newTransactionId = result.lastInsertRowid;
-
-  res.json({
-    success: true,
-    message: "New transaction created and receipt linked",
-    transactionId: newTransactionId,
-    receiptId,
-  });
-});
-
-// ------------------------------------------------------------
-// POST /transactions/:id/category → gebruiker bevestigt categorie
-// ------------------------------------------------------------
-router.post("/category/confirm", (req, res) => {
-  const { transactionId, category_id, merchant } = req.body;
-
-  if (!transactionId || !category_id) {
-    return res.status(400).json({
-      error: "transactionId and category_id are required",
+    // 9. Response
+    res.json({
+      action: "linked",
+      receiptId,
+      transactionId: newTransactionId,
+      category: finalCategory,
+      subcategory: finalSubcategory,
+      summary: "Receipt successfully linked to transaction",
     });
+  } catch (err) {
+    console.error("Link route error:", err);
+    res.status(500).json({ error: "Linking failed", details: String(err) });
   }
-
-  // Update transactie
-  db.prepare(
-    `
-    UPDATE transactions
-    SET category_id = ?
-    WHERE id = ? AND user_id = ?
-  `
-  ).run(category_id, transactionId, USER_ID);
-
-  // Merchant-memory bijwerken (optioneel merchant kan null zijn)
-  if (merchant) {
-    db.prepare(
-      `
-      INSERT OR REPLACE INTO merchant_memory (merchant, category_id, user_id)
-      VALUES (?, ?, ?)
-    `
-    ).run(merchant, category_id, USER_ID);
-  }
-
-  res.json({
-    success: true,
-    message: "Category confirmed and merchant memory updated",
-    transactionId,
-    category_id,
-  });
 });
 
 export default router;

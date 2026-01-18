@@ -4,37 +4,23 @@ const client = new OpenAI();
 
 export async function aiChooseCategory(
   merchantName: string,
-  description: string
-) {
+  description: string,
+  categories: string[],
+): Promise<string> {
   const prompt = `
 Je bent een categorisatie-assistent voor een budget-app.
-Je taak: kies de BESTE categorie voor deze transactie.
+Kies de BESTE categorie voor deze transactie.
 
 Merchant: ${merchantName}
 Omschrijving: ${description}
 
 Beschikbare categorieën:
-- Boodschappen
-- PersoonlijkeVerzorging
-- Huishouden
-- Vervoer
-- Abonnementen
-- VrijeTijd
-- Wonen
-- Inkomen
-- Overig
+${categories.map((c: string) => `- ${c}`).join("\n")}
 
 Regels:
-- Supermarkten → Boodschappen
-- Drogist → PersoonlijkeVerzorging
-- Kruidvat/Action → Huishouden
-- NS/OV → Vervoer
-- Streaming → Abonnementen
-- Restaurants → VrijeTijd
-- Huur → Wonen
-- Salaris → Inkomen
-
-Geef alleen de categorie terug, niets anders.
+- Kies altijd één van de beschikbare categorieën.
+- Als je twijfelt, kies de meest logische.
+- Geef alleen de categorie terug, niets anders.
   `;
 
   const response = await client.chat.completions.create({
@@ -45,8 +31,8 @@ Geef alleen de categorie terug, niets anders.
   const content = response?.choices?.[0]?.message?.content;
 
   if (!content) {
-    console.warn("AI returned no content, falling back to 'Overig'");
-    return "Overig";
+    console.warn("AI returned no content, falling back to first category");
+    return categories[0] ?? "Overig";
   }
 
   return content.trim();

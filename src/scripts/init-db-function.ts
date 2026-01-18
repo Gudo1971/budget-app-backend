@@ -2,13 +2,19 @@ import { db } from "../lib/db";
 
 export function initDatabase() {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS categories (
+    -- ============================
+    -- CATEGORIES
+    -- ============================
+    CREATE TABLE categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       type TEXT NOT NULL CHECK(type IN ('variable', 'fixed'))
+    , user_id TEXT DEFAULT 'demo-user'
     );
-
-    CREATE TABLE IF NOT EXISTS receipts (
+    -- ============================
+    -- RECEIPTS
+    -- ============================
+    CREATE TABLE receipts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       filename TEXT NOT NULL,
       original_name TEXT NOT NULL,
@@ -16,30 +22,42 @@ export function initDatabase() {
       user_id TEXT NOT NULL,
       ocrText TEXT,
       aiResult TEXT,
-      category TEXT,
-      subCategory TEXT,
-      processed INTEGER DEFAULT 0
+      imageHash TEXT,                   
+      status TEXT NOT NULL DEFAULT 'pending',
+      transaction_id INTEGER, category TEXT, subCategory TEXT, merchant TEXT, merchant_category TEXT, purchase_date TEXT, total REAL,             -- koppeling naar transaction
+      FOREIGN KEY (transaction_id) REFERENCES transactions(id)
     );
-
+    -- ============================
+    -- TRANSACTIONS
+    -- ============================
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      receipt_id INTEGER,
+      receipt_id INTEGER,                 -- koppeling naar receipt
       amount REAL NOT NULL,
-      date TEXT NOT NULL,
-      transaction_date TEXT NOT NULL,
-      merchant TEXT NOT NULL,
-      description TEXT,
+      date TEXT NOT NULL,                 -- bankdatum
+      transaction_date TEXT NOT NULL,     -- aankoopdatum
+      merchant TEXT NOT NULL,             -- genormaliseerde merchant
+      description TEXT,                   -- originele bankomschrijving
+      category_id INTEGER,                -- koppeling naar categories
       category TEXT,
       subcategory TEXT,
-      user_id TEXT NOT NULL
+      user_id TEXT NOT NULL,
+      FOREIGN KEY (receipt_id) REFERENCES receipts(id),
+      FOREIGN KEY (category_id) REFERENCES categories(id)
     );
 
+    -- ============================
+    -- BUDGETS
+    -- ============================
     CREATE TABLE IF NOT EXISTS budgets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       month TEXT NOT NULL,
       total_budget REAL NOT NULL
     );
 
+    -- ============================
+    -- BUDGET CATEGORIES
+    -- ============================
     CREATE TABLE IF NOT EXISTS budget_categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       month TEXT NOT NULL,
@@ -48,6 +66,9 @@ export function initDatabase() {
       FOREIGN KEY (category_id) REFERENCES categories(id)
     );
 
+    -- ============================
+    -- FIXED COSTS
+    -- ============================
     CREATE TABLE IF NOT EXISTS fixed_costs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -55,6 +76,9 @@ export function initDatabase() {
       interval TEXT NOT NULL CHECK(interval IN ('monthly', 'yearly'))
     );
 
+    -- ============================
+    -- MERCHANT MEMORY
+    -- ============================
     CREATE TABLE IF NOT EXISTS merchant_memory (
       user_id TEXT NOT NULL,
       merchant TEXT NOT NULL,
@@ -64,6 +88,9 @@ export function initDatabase() {
       PRIMARY KEY (user_id, merchant)
     );
 
+    -- ============================
+    -- SAVINGS GOALS
+    -- ============================
     CREATE TABLE IF NOT EXISTS savings_goals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,

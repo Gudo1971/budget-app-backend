@@ -1,23 +1,45 @@
 import { Router } from "express";
-import { categorizeTransactions } from "../../services/categories/categorizeService";
-
-import type { Transaction } from "../../types/transactions";
+import { db } from "../../lib/db";
+import { categorizeTransaction } from "../../categorization/categorizeTransaction";
+import { CategorizeInput, CategorizeOutput } from "../../types/categorization";
+import { Transaction } from "../../types/Transaction";
 
 const router = Router();
 
-router.post("/", async (req, res, next) => {
-  try {
-    const { transactions } = req.body as { transactions: Transaction[] };
+router.post("/:id", async (req, res) => {
+  const txId = Number(req.params.id);
+  const USER_ID = req.body.userId || "demo-user";
 
-    if (!Array.isArray(transactions)) {
-      return res.status(400).json({ error: "transactions must be an array" });
-    }
+  // 1. Haal transactie op
+  const tx = db
+    .prepare(
+      `SELECT id, amount, date, merchant, description
+       FROM transactions
+       WHERE id = ? AND user_id = ?`,
+    )
+    .get(txId, USER_ID) as Transaction | undefined;
 
-    const result = await categorizeTransactions(transactions);
-    res.status(200).json(result);
-  } catch (err) {
-    next(err);
+  if (!tx) {
+    return res.status(404).json({ error: "Transaction not found" });
   }
+
+  // 2. Bouw categorisatie-input
+  const input: CategorizeInput = {
+    userId: USER_ID,
+    merchantName: tx.merchant,
+    description: tx.description ?? tx.merchant,
+    amount: tx.amount,
+    date: tx.date,
+  };
+
+  // 3. Categoriseer
+  const result: CategorizeOutput = await categorizeTransaction(input);
+
+  // 4. Return resultaat
+  return res.json({
+    transactionId: txId,
+    ...result,
+  });
 });
 
 export default router;

@@ -4,7 +4,7 @@ import { openai } from "./client";
 
 export async function runExtraction<T>(
   prompt: string,
-  schema: z.ZodType<T>
+  schema: z.ZodType<T>,
 ): Promise<T> {
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-mini",
