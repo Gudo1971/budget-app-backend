@@ -40,9 +40,11 @@ router.post("/:id/link", async (req, res) => {
     }
 
     // 3. Normaliseer date
-    const rawDate = parsed.date || parsed.purchase_date;
+    // 3. Normaliseer date (UI > AI > error)
+    const rawDate = req.body.date || parsed.date || parsed.purchase_date;
+
     if (!rawDate) {
-      throw new Error("No date extracted from receipt");
+      throw new Error("No date provided");
     }
 
     const normalizedDate = new Date(rawDate).toISOString().slice(0, 10);
