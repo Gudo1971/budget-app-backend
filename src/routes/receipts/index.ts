@@ -5,6 +5,7 @@ import path from "path";
 import { db } from "../../lib/db";
 import { findMatchingTransaction } from "../../ai/matching/findMatchingTransaction";
 import smartUploadReceipt from "./upload";
+import confirmLinkRoute from "./confirmLink";
 
 const router = Router();
 const USER_ID = "demo-user";
@@ -223,36 +224,9 @@ router.delete("/:id", (req: Request, res: Response) => {
 });
 
 // ------------------------------------------------------------
-// PUT /receipts/:id/link → koppel aan transactie
+// PUT /receipts/:id/confirm-link → koppel aan transactie
 // ------------------------------------------------------------
-router.put("/:id/link", (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { transactionId } = req.body;
-
-  if (!transactionId) {
-    return res.status(400).json({ error: "transactionId is required" });
-  }
-
-  const receipt = db
-    .prepare("SELECT id FROM receipts WHERE id = ? AND user_id = ?")
-    .get(id, USER_ID) as { id: number } | undefined;
-
-  if (!receipt) {
-    return res.status(404).json({ error: "Receipt not found" });
-  }
-
-  db.prepare(
-    `
-    UPDATE receipts
-    SET 
-      status = 'linked',
-      transaction_id = ?
-    WHERE id = ?
-    `,
-  ).run(transactionId, id);
-
-  res.json({ success: true, receiptId: id, transactionId });
-});
+router.use("/", confirmLinkRoute);
 
 // ------------------------------------------------------------
 // GET /receipts/:id/match → AI matchen met transacties

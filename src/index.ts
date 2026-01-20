@@ -23,7 +23,6 @@ import categorizeRouter from "./routes/categorize";
 
 import { migrateReceiptsTable } from "./lib/migrations";
 import archiveRoutes from "./routes/receipts/archive";
-import linkRoutes from "./routes/receipts/link";
 
 // ⭐ Migraties uitvoeren
 migrateReceiptsTable();
@@ -57,7 +56,7 @@ app.use("/api/receipts", receiptsRouter);
 app.use("/api/items", itemRoutes);
 app.use("/api/merchant-categories", merchantCategoryRoute);
 app.use("/api/receipts", archiveRoutes);
-app.use("/api/receipts", linkRoutes);
+
 app.post("/api/receipts/upload", smartUploadReceipt);
 app.use("/api/categorize", categorizeRouter);
 app.use(errorHandler);
