@@ -1,19 +1,22 @@
 import { db } from "../../lib/db";
+import { normalizeMerchant } from "../../utils/merchant";
 
 export function getCategoryForMerchant(
   user_id: string,
-  merchant: string
+  merchant: string,
 ): number | null {
+  const norm = normalizeMerchant(merchant);
+
   const row = db
     .prepare(
       `
       SELECT category_id
       FROM merchant_memory
       WHERE user_id = ?
-        AND LOWER(merchant) = LOWER(?)
-    `
+        AND merchant = ?
+    `,
     )
-    .get(user_id, merchant) as { category_id: number } | null;
+    .get(user_id, norm) as { category_id: number } | null;
 
   return row?.category_id ?? null;
 }
@@ -21,8 +24,10 @@ export function getCategoryForMerchant(
 export function upsertMerchantMemory(
   user_id: string,
   merchant: string,
-  category_id: number
+  category_id: number,
 ) {
+  const norm = normalizeMerchant(merchant);
+
   db.prepare(
     `
     INSERT INTO merchant_memory (user_id, merchant, category_id)
@@ -31,6 +36,6 @@ export function upsertMerchantMemory(
     DO UPDATE SET
       category_id = excluded.category_id,
       updated_at = datetime('now')
-  `
-  ).run(user_id, merchant.toLowerCase(), category_id);
+  `,
+  ).run(user_id, norm, category_id);
 }
