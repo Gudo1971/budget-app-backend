@@ -1,5 +1,7 @@
 import { db } from "../../lib/db";
 import { normalizeDate } from "./transaction.utils";
+import { normalizeMerchant } from "../../utils/merchant.utils";
+import { categorizeTransaction } from "../../categorization/categorizeTransaction";
 
 // ⭐ Uniforme mapping voor alle transacties
 function mapTransaction(row: any) {
@@ -34,8 +36,6 @@ function mapTransaction(row: any) {
 export const transactionService = {
   // ⭐ GET ALL TRANSACTIONS
   getAll() {
-    console.log("📋 Fetching all transactions...");
-    
     const rows = db
       .prepare(
         `
@@ -62,12 +62,6 @@ ORDER BY t.transaction_date DESC
       )
       .all();
 
-    console.log(`✅ Found ${rows.length} transactions`);
-    
-    if (rows.length === 0) {
-      console.log("⚠️ No transactions in database!");
-    }
-
     return {
       success: true,
       data: rows.map(mapTransaction),
@@ -75,27 +69,23 @@ ORDER BY t.transaction_date DESC
     };
   },
 
-  // ⭐ CREATE FLOW — Backwards compatible (old & new format)
+  // ⭐ CREATE FLOW
   async create(body: any) {
     console.log(">>> CREATE CALLED WITH:", body);
 
-    // ⭐ SUPPORT BOTH FORMATS
-    let amount, date, merchant, description, category, subcategory, receiptId, userId;
+    let amount, date, merchant, description, receiptId, userId;
 
-    // Nieuw format (van /link route)
+    // Nieuw format
     if (body.amount !== undefined && body.merchant !== undefined) {
-      ({ amount, date, merchant, description, category, subcategory, receiptId, userId } =
-        body);
+      ({ amount, date, merchant, description, receiptId, userId } = body);
     }
-    // Oud format (van seed/csv import)
+    // Oud format (seed/csv)
     else if (body.form && body.extracted) {
-      const { form, extracted, receiptId: rid, source } = body;
+      const { form, extracted, receiptId: rid } = body;
       amount = form.amount || extracted.total;
       date = form.date || extracted.date;
       merchant = form.merchant || extracted.merchant;
       description = form.description;
-      category = form.category || extracted.merchant_category;
-      subcategory = form.subcategory || extracted.merchant_subcategory;
       receiptId = rid ?? null;
       userId = body.userId || "demo-user";
     } else {
@@ -106,41 +96,42 @@ ORDER BY t.transaction_date DESC
       };
     }
 
-    // Validatie
-    if (amount == null || !merchant || !category) {
+    if (amount == null || !merchant) {
       return {
         success: false,
-        error: "Missing required fields: amount, merchant, category",
+        error: "Missing required fields: amount, merchant",
         data: null,
       };
     }
 
     const normalizedDate = normalizeDate(date ?? new Date().toISOString());
     const normalizedAmount = parseFloat(String(amount));
+    const normMerchant = normalizeMerchant(merchant);
 
-    // ⭐ CHECK VOOR DUPLICATE
+    // ⭐ DUPLICATE CHECK (normalized merchant)
     const existing = db
       .prepare(
         `
       SELECT id FROM transactions
       WHERE DATE(transaction_date) = DATE(?)
         AND amount = ?
-        AND LOWER(merchant) = LOWER(?)
+        AND merchant = ?
         AND user_id = ?
-    `
+    `,
       )
-      .get(normalizedDate, normalizedAmount, merchant, userId || "demo-user") as {
+      .get(
+        normalizedDate,
+        normalizedAmount,
+        normMerchant,
+        userId || "demo-user",
+      ) as {
       id: number;
     } | null;
 
     if (existing?.id) {
-      // ⭐ ALS DUPLICATE: KOPPEL BON EN RETURN DUPLICATE STATUS
       if (receiptId) {
-        console.log(
-          `🔗 Linking receipt ${receiptId} to existing transaction ${existing.id}`
-        );
         db.prepare(
-          `UPDATE transactions SET receipt_id = ? WHERE id = ? AND user_id = ?`
+          `UPDATE transactions SET receipt_id = ? WHERE id = ? AND user_id = ?`,
         ).run(receiptId, existing.id, userId || "demo-user");
       }
 
@@ -155,7 +146,14 @@ ORDER BY t.transaction_date DESC
       };
     }
 
-    // ⭐ GEEN DUPLICATE: MAAK NIEUWE TRANSACTIE
+    // ⭐ CATEGORISATIE (nieuwe engine)
+    const categorization = await categorizeTransaction(
+      userId || "demo-user",
+      normMerchant,
+      normalizedAmount,
+      description ?? "",
+    );
+
     const stmt = db.prepare(`
       INSERT INTO transactions (
         receipt_id,
@@ -176,16 +174,14 @@ ORDER BY t.transaction_date DESC
       normalizedAmount,
       normalizedDate,
       normalizedDate,
-      merchant,
-      description ?? merchant,
-      category,
-      subcategory ?? null,
+      normMerchant,
+      description ?? normMerchant,
+      categorization.category,
+      categorization.subcategory,
       userId || "demo-user",
     );
 
     db.pragma("wal_checkpoint(TRUNCATE)");
-
-    console.log(`✅ Created transaction ${result.lastInsertRowid}`);
 
     return {
       success: true,
@@ -194,10 +190,10 @@ ORDER BY t.transaction_date DESC
         receipt_id: receiptId ?? null,
         amount: normalizedAmount,
         date: normalizedDate,
-        merchant,
-        description: description ?? merchant,
-        category,
-        subcategory: subcategory ?? null,
+        merchant: normMerchant,
+        description: description ?? normMerchant,
+        category: categorization.category,
+        subcategory: categorization.subcategory,
         recurring: false,
         receipt: null,
         userId: userId || "demo-user",
