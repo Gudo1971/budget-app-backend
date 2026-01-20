@@ -43,12 +43,11 @@ router.post("/:id/extract", async (req, res) => {
       return res.status(404).json({ error: "File not found" });
     }
 
-    // 3. Buffer lezen (correct)
+    // 3. Buffer lezen
     const buffer = fs.readFileSync(filePath);
 
-    // 4. Extractie uitvoeren (Buffer!)
+    // 4. Extractie uitvoeren
     const extracted = await extractReceiptFromImage(buffer);
-
     const parsedJson = extracted.parsedJson;
 
     console.log(
@@ -72,32 +71,40 @@ router.post("/:id/extract", async (req, res) => {
 
     db.prepare(
       `
-  UPDATE receipts
-  SET
-    merchant = ?,
-    merchant_category = ?,
-    purchase_date = ?,
-    total = ?,
-    ocrText = ?,
-    aiResult = ?,
-    status = 'processed'
-  WHERE id = ?
-`,
+      UPDATE receipts
+      SET
+        merchant = ?,
+        merchant_category = ?,
+        purchase_date = ?,
+        total = ?,
+        ocrText = ?,
+        aiResult = ?,
+        status = 'processed'
+      WHERE id = ?
+    `,
     ).run(
       parsedJson.merchant ?? null,
       parsedJson.merchant_category ?? null,
-      parsedJson.date ?? null, // ← werkt zolang jouw Vision JSON een "date" veld heeft
+      parsedJson.date ?? null,
       parsedJson.total ?? null,
       extracted.ocrText ?? null,
       JSON.stringify(parsedJson),
       receipt.id,
     );
 
-    // 7. Response
+    // ⭐ 7. Normalized block voor v2 matching engine
+    const normalized = {
+      amount: parsedJson.total ?? null,
+      date: parsedJson.date ?? null,
+      merchant: parsedJson.merchant ?? null,
+    };
+
+    // 8. Response
     res.json({
       action: "extracted",
       receiptId: id,
       extracted: { ...extracted, parsedJson },
+      normalized,
       summary: "Receipt successfully analyzed",
     });
   } catch (err) {

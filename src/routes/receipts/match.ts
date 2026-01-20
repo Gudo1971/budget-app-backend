@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../../lib/db";
-import { findMatchingTransaction } from "../../ai/matching/findMatchingTransaction";
-import { MatchResult } from "../../../../shared/types/matching";
+import { matchingService } from "../../services/matching/matching.service";
+import { MatchResult, MatchInput } from "../../../../shared/types/matching";
 
 const router = Router();
 const USER_ID = "demo-user";
@@ -44,7 +44,7 @@ router.get("/:id/match", async (req, res) => {
   console.log("🔍 MATCH DEBUG - aiResult from DB:", receipt.aiResult);
   console.log("🔍 MATCH DEBUG - Parsed extracted:", extracted);
 
-  // 3. VALIDATIE — AI RESULT MOET BESTAAN (maar date kan null zijn)
+  // 3. VALIDATIE — AI RESULT MOET BESTAAN
   if (!extracted.total || !extracted.merchant) {
     console.log("❌ VALIDATION FAILED:", {
       hasTotal: !!extracted.total,
@@ -61,13 +61,20 @@ router.get("/:id/match", async (req, res) => {
     extracted.date = new Date().toISOString().split("T")[0];
   }
 
-  // 4. MATCHING ENGINE
-  const matchResult = (await findMatchingTransaction({
+  // 4. MATCHING ENGINE V2
+  const matchInput: MatchInput = {
     receiptId: receipt.id,
     amount: extracted.total,
     date: extracted.date,
     merchant: extracted.merchant,
-  })) as MatchResult;
+  };
+
+  const matchResult: MatchResult = matchingService.findMatch(
+    matchInput,
+    USER_ID,
+  );
+
+  console.log("🔍 MATCH RESULT (v2):", matchResult);
 
   // 5. TERUGSTUREN — DIRECT HET MATCHRESULT
   return res.json(matchResult);

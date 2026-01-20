@@ -14,16 +14,12 @@ router.get("/", (req, res) => {
   res.json(transactions);
 });
 
-// ⭐ POST: CSV import
+// ⭐ POST: Create transaction (supports both old & new format)
 router.post("/", (req, res) => {
   console.log("RAW BODY:", req.body);
 
-  const result = transactionService.create({
-    source: req.body.source,
-    receiptId: req.body.receiptId,
-    extracted: req.body.extracted,
-    form: req.body.form,
-  });
+  // ⭐ Doorgeven wat de frontend stuurt - service bepaalt format
+  const result = transactionService.create(req.body);
 
   res.json(result);
 });

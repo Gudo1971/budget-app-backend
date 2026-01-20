@@ -1,15 +1,11 @@
 import { db } from "../../lib/db";
 import { normalizeDate } from "./transaction.utils";
-import { matchingService } from "../matching/matching.service";
-import { categorizeTransaction } from "../../categorization/categorizeTransaction";
-import { upsertMerchantMemory } from "../../lib/merchantMemory";
-import { normalizeCategory } from "../../categorization/normalizeCategory";
 
 // ⭐ Uniforme mapping voor alle transacties
 function mapTransaction(row: any) {
   return {
     id: row.id,
-    date: row.transaction_date, // ⭐ FIX
+    date: row.transaction_date,
     description: row.description,
     amount: row.amount,
     merchant: row.merchant,
@@ -36,8 +32,10 @@ function mapTransaction(row: any) {
 }
 
 export const transactionService = {
-  // ⭐ GET ALL TRANSACTIONS (uniform return shape)
+  // ⭐ GET ALL TRANSACTIONS
   getAll() {
+    console.log("📋 Fetching all transactions...");
+    
     const rows = db
       .prepare(
         `
@@ -64,6 +62,12 @@ ORDER BY t.transaction_date DESC
       )
       .all();
 
+    console.log(`✅ Found ${rows.length} transactions`);
+    
+    if (rows.length === 0) {
+      console.log("⚠️ No transactions in database!");
+    }
+
     return {
       success: true,
       data: rows.map(mapTransaction),
@@ -71,60 +75,50 @@ ORDER BY t.transaction_date DESC
     };
   },
 
-  // ⭐ CENTRALE CREATE-FLOW (PDF, CSV, manual, AI)
+  // ⭐ CREATE FLOW — Backwards compatible (old & new format)
+  async create(body: any) {
+    console.log(">>> CREATE CALLED WITH:", body);
 
-  async create({ receiptId, extracted = {}, form = {} }: any) {
-    console.log(">>> CREATE CALLED WITH:", { receiptId, form, extracted });
+    // ⭐ SUPPORT BOTH FORMATS
+    let amount, date, merchant, description, category, subcategory, receiptId, userId;
 
-    const userId = "demo-user";
-
-    // ------------------------------------------------------------
-    // ⭐ 1. Automatische bon-detectie
-    // ------------------------------------------------------------
-    const isReceipt = !!receiptId;
-
-    // ------------------------------------------------------------
-    // ⭐ 2. Bedrag bepalen (form > extracted)
-    // ------------------------------------------------------------
-    let amount = Number(form.amount ?? extracted.total ?? 0);
-
-    if (isReceipt) {
-      const text = extracted?.rawText?.toLowerCase() ?? "";
-
-      const isRefund =
-        text.includes("u ontvangt retour") ||
-        text.includes("u ontvangt terug") ||
-        text.includes("terugbetaling") ||
-        text.includes("refund") ||
-        text.includes("credit");
-
-      amount = isRefund ? Math.abs(amount) : -Math.abs(amount);
+    // Nieuw format (van /link route)
+    if (body.amount !== undefined && body.merchant !== undefined) {
+      ({ amount, date, merchant, description, category, subcategory, receiptId, userId } =
+        body);
+    }
+    // Oud format (van seed/csv import)
+    else if (body.form && body.extracted) {
+      const { form, extracted, receiptId: rid, source } = body;
+      amount = form.amount || extracted.total;
+      date = form.date || extracted.date;
+      merchant = form.merchant || extracted.merchant;
+      description = form.description;
+      category = form.category || extracted.merchant_category;
+      subcategory = form.subcategory || extracted.merchant_subcategory;
+      receiptId = rid ?? null;
+      userId = body.userId || "demo-user";
+    } else {
+      return {
+        success: false,
+        error: "Invalid input format",
+        data: null,
+      };
     }
 
-    // ------------------------------------------------------------
-    // ⭐ 3. Datum bepalen
-    // ------------------------------------------------------------
-    const date = normalizeDate(
-      form.date ?? extracted.date ?? new Date().toISOString(),
-    );
+    // Validatie
+    if (amount == null || !merchant || !category) {
+      return {
+        success: false,
+        error: "Missing required fields: amount, merchant, category",
+        data: null,
+      };
+    }
 
-    // ------------------------------------------------------------
-    // ⭐ 4. Merchant & description bepalen
-    // ------------------------------------------------------------
-    const merchant =
-      form.merchant ?? extracted.merchant ?? extracted.store ?? "Onbekend";
+    const normalizedDate = normalizeDate(date ?? new Date().toISOString());
+    const normalizedAmount = parseFloat(String(amount));
 
-    const description =
-      form.description ??
-      extracted.description ??
-      extracted.items?.[0]?.name ??
-      extracted.merchant ??
-      merchant ??
-      "Onbekend";
-
-    // ------------------------------------------------------------
-    // ⭐ 5. Duplicate check
-    // ------------------------------------------------------------
+    // ⭐ CHECK VOOR DUPLICATE
     const existing = db
       .prepare(
         `
@@ -133,19 +127,21 @@ ORDER BY t.transaction_date DESC
         AND amount = ?
         AND LOWER(merchant) = LOWER(?)
         AND user_id = ?
-    `,
+    `
       )
-      .get(date, amount, merchant, userId) as { id: number } | null;
+      .get(normalizedDate, normalizedAmount, merchant, userId || "demo-user") as {
+      id: number;
+    } | null;
 
     if (existing?.id) {
-      // ⭐ ALS ER EEN BON IS: KOPPEL HEM AAN BESTAANDE TRANSACTIE
+      // ⭐ ALS DUPLICATE: KOPPEL BON EN RETURN DUPLICATE STATUS
       if (receiptId) {
         console.log(
-          `🔗 Linking receipt ${receiptId} to existing transaction ${existing.id}`,
+          `🔗 Linking receipt ${receiptId} to existing transaction ${existing.id}`
         );
         db.prepare(
-          `UPDATE transactions SET receipt_id = ? WHERE id = ? AND user_id = ?`,
-        ).run(receiptId, existing.id, userId);
+          `UPDATE transactions SET receipt_id = ? WHERE id = ? AND user_id = ?`
+        ).run(receiptId, existing.id, userId || "demo-user");
       }
 
       return {
@@ -159,118 +155,54 @@ ORDER BY t.transaction_date DESC
       };
     }
 
-    // ------------------------------------------------------------
-    // ⭐ 6. Matching met banktransacties
-    // ------------------------------------------------------------
-    const match = matchingService.findMatch(amount, date, merchant, userId);
-
-    if (match.match && match.transaction_id !== undefined) {
-      matchingService.linkReceiptToTransaction(receiptId, match.transaction_id);
-
-      return {
-        success: true,
-        data: {
-          matched: true,
-          transactionId: match.transaction_id,
-          receiptId,
-        },
-        error: null,
-      };
-    }
-
-    // ------------------------------------------------------------
-    // ⭐ 7. Merchant-memory lookup (VOOR categorisatie)
-    // ------------------------------------------------------------
-    const memory = db
-      .prepare(
-        `
-      SELECT category, subcategory 
-      FROM merchant_memory
-      WHERE user_id = ? AND LOWER(merchant) = LOWER(?)
-    `,
-      )
-      .get(userId, merchant) as {
-      category: string;
-      subcategory: string;
-    } | null;
-
-    let category: string | null = null;
-    let subcategory: string | null = null;
-
-    if (memory) {
-      category = memory.category;
-      subcategory = memory.subcategory;
-    } else {
-      // ------------------------------------------------------------
-      // ⭐ 8. Categorisatie-engine fallback
-      // ------------------------------------------------------------
-      const categorized = await categorizeTransaction({
-        userId,
-        merchantName: merchant,
-        description,
+    // ⭐ GEEN DUPLICATE: MAAK NIEUWE TRANSACTIE
+    const stmt = db.prepare(`
+      INSERT INTO transactions (
+        receipt_id,
         amount,
         date,
-      });
-
-      category = normalizeCategory(categorized.category);
-      subcategory = categorized.subcategory;
-    }
-
-    // ------------------------------------------------------------
-    // ⭐ 9. Insert transaction
-    // ------------------------------------------------------------
-    const stmt = db.prepare(`
-    INSERT INTO transactions (
-      receipt_id,
-      amount,
-      date,
-      transaction_date,
-      merchant,
-      description,
-      category,
-      subcategory,
-      user_id
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+        transaction_date,
+        merchant,
+        description,
+        category,
+        subcategory,
+        user_id
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
 
     const result = stmt.run(
       receiptId ?? null,
-      amount,
-      date,
-      date,
+      normalizedAmount,
+      normalizedDate,
+      normalizedDate,
       merchant,
-      description,
+      description ?? merchant,
       category,
-      subcategory,
-      userId,
+      subcategory ?? null,
+      userId || "demo-user",
     );
 
-    // ------------------------------------------------------------
-    // ⭐ 10. Merchant-memory updaten
-    // ------------------------------------------------------------
-    upsertMerchantMemory(userId, merchant, category, subcategory);
-
-    // ⭐ Forceer SQLite om ALLE writes te flushen
     db.pragma("wal_checkpoint(TRUNCATE)");
 
-    // ------------------------------------------------------------
-    // ⭐ 11. Uniform return shape
-    // ------------------------------------------------------------
+    console.log(`✅ Created transaction ${result.lastInsertRowid}`);
+
     return {
       success: true,
       data: {
         id: result.lastInsertRowid,
         receipt_id: receiptId ?? null,
-        amount,
-        date,
+        amount: normalizedAmount,
+        date: normalizedDate,
         merchant,
-        description,
+        description: description ?? merchant,
         category,
-        subcategory,
+        subcategory: subcategory ?? null,
         recurring: false,
         receipt: null,
-        userId,
+        userId: userId || "demo-user",
+        duplicate: false,
+        matched: false,
       },
       error: null,
     };
