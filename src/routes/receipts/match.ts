@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../../lib/db";
 import { findMatchingTransaction } from "../../ai/matching/findMatchingTransaction";
-import { MatchResult } from "../../types/matching";
+import { MatchResult } from "../../../../shared/types/matching";
 
 const router = Router();
 const USER_ID = "demo-user";
@@ -41,11 +41,24 @@ router.get("/:id/match", async (req, res) => {
     extracted = {};
   }
 
-  // 3. VALIDATIE — AI RESULT MOET BESTAAN
-  if (!extracted.total || !extracted.date || !extracted.merchant) {
-    return res.status(400).json({
-      error: "Receipt has no AI analysis yet. Run /analyze first.",
+  console.log("🔍 MATCH DEBUG - aiResult from DB:", receipt.aiResult);
+  console.log("🔍 MATCH DEBUG - Parsed extracted:", extracted);
+
+  // 3. VALIDATIE — AI RESULT MOET BESTAAN (maar date kan null zijn)
+  if (!extracted.total || !extracted.merchant) {
+    console.log("❌ VALIDATION FAILED:", {
+      hasTotal: !!extracted.total,
+      hasMerchant: !!extracted.merchant,
     });
+    return res.status(400).json({
+      error: "Receipt has no merchant or total. AI analysis may have failed.",
+    });
+  }
+
+  // ⭐ ALS GEEN DATE: GEBRUIK VANDAAG
+  if (!extracted.date) {
+    console.log("⚠️  No date on receipt, using today's date");
+    extracted.date = new Date().toISOString().split("T")[0];
   }
 
   // 4. MATCHING ENGINE

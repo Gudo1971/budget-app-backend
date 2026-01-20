@@ -1,8 +1,11 @@
 import { Router } from "express";
 import { db } from "../../lib/db";
 import { categorizeTransaction } from "../../categorization/categorizeTransaction";
-import { CategorizeInput, CategorizeOutput } from "../../types/categorization";
-import { Transaction } from "../../types/Transaction";
+import {
+  CategorizeInput,
+  CategorizeOutput,
+} from "../../../../shared/types/categorization";
+import { Transaction } from "../../../../shared/types/Transaction";
 
 const router = Router();
 

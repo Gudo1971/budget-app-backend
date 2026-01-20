@@ -2,7 +2,7 @@ import { z } from "zod";
 import { openai } from "../ai/engine/client";
 import { Router } from "express";
 import { db } from "../lib/db";
-import type { Transaction } from "../types/Transaction";
+import type { Transaction } from "../../../shared/types/Transaction";
 
 const router = Router();
 

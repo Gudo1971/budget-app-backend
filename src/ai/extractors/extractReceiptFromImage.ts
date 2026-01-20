@@ -1,5 +1,5 @@
 import { runVisionExtraction } from "../engine/runVisionExtraction";
-import { ReceiptJson } from "../../types/receipts";
+import { ReceiptJson } from "../../../../shared/types/receipts";
 
 export async function extractReceiptFromImage(
   image: Buffer,

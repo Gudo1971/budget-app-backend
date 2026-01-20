@@ -30,7 +30,7 @@ export function initDatabase() {
     -- ============================
     -- TRANSACTIONS
     -- ============================
-    CREATE TABLE IF NOT EXISTS transactions (
+  CREATE TABLE transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       receipt_id INTEGER,                 -- koppeling naar receipt
       amount REAL NOT NULL,
@@ -41,7 +41,7 @@ export function initDatabase() {
       category_id INTEGER,                -- koppeling naar categories
       category TEXT,
       subcategory TEXT,
-      user_id TEXT NOT NULL,
+      user_id TEXT NOT NULL, recurring INTEGER DEFAULT 0,
       FOREIGN KEY (receipt_id) REFERENCES receipts(id),
       FOREIGN KEY (category_id) REFERENCES categories(id)
     );
