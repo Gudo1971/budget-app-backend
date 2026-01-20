@@ -2,20 +2,21 @@ import { db } from "../../lib/db";
 import { similarity } from "./string.utils";
 import { dateRange } from "./date.utils";
 import { amountCloseEnough } from "./amount.utils";
-
+import { normalizeMerchant } from "../../utils/merchant";
 import {
   MatchInput,
   MatchResult,
   MatchDuplicate,
   MatchAiResult,
   MatchCandidate,
-} from "../../../../shared/types/matching"; // pas pad aan indien nodig
+} from "../../../../shared/types/matching";
 
 export const matchingService = {
   findMatch(input: MatchInput, userId: string): MatchResult {
     const { receiptId, amount, date, merchant } = input;
 
-    // Normalize amount to absolute value for matching
+    // Normalize merchant + amount
+    const normMerchant = normalizeMerchant(merchant);
     const normalizedAmount = Math.abs(amount);
 
     console.log("🔍 [MATCH v2] Starting match for:", {
@@ -24,10 +25,11 @@ export const matchingService = {
       normalizedAmount,
       date,
       merchant,
+      normMerchant,
     });
 
     // ------------------------------------------------------------
-    // 1. DUPLICATE CHECK (exact match with normalized amounts)
+    // 1. DUPLICATE CHECK (exact match with normalized merchant)
     // ------------------------------------------------------------
     const duplicate = db
       .prepare(
@@ -36,7 +38,7 @@ export const matchingService = {
         FROM transactions
         WHERE ABS(amount) = ?
           AND DATE(transaction_date) = DATE(?)
-          AND LOWER(merchant) = LOWER(?)
+          AND merchant = ?
           AND user_id = ?
           AND receipt_id IS NULL
       `,
@@ -44,7 +46,7 @@ export const matchingService = {
       .get(
         normalizedAmount,
         date,
-        merchant.toLowerCase(),
+        normMerchant,
         userId,
       ) as MatchDuplicate | null;
 
@@ -92,10 +94,13 @@ export const matchingService = {
     const candidates: MatchCandidate[] = [];
 
     for (const row of rows) {
-      // Use absolute values for amount comparison
+      const rowNormMerchant = normalizeMerchant(row.merchant);
+
+      // Amount tolerance
       if (!amountCloseEnough(normalizedAmount, Math.abs(row.amount))) continue;
 
-      const score = similarity(merchant, row.merchant);
+      // Fuzzy merchant similarity
+      const score = similarity(normMerchant, rowNormMerchant);
 
       if (score >= 0.4) {
         candidates.push({
