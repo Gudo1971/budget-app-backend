@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "../../lib/db";
 import { Transaction } from "../../../../shared/types/Transaction";
+
 const router = Router();
 const USER_ID = "demo-user";
 
@@ -38,10 +39,10 @@ router.post("/:id/confirm-link", (req, res) => {
   const transaction = db
     .prepare(
       `
-    SELECT id, receipt_id
-    FROM transactions
-    WHERE id = ? AND user_id = ?
-  `,
+      SELECT id, receipt_id
+      FROM transactions
+      WHERE id = ? AND user_id = ?
+    `,
     )
     .get(transactionId, USER_ID) as
     | Pick<Transaction, "id" | "receipt_id">
@@ -58,7 +59,7 @@ router.post("/:id/confirm-link", (req, res) => {
     });
   }
 
-  // 4. Perform the link
+  // ⭐ 4. Link transaction → receipt
   db.prepare(
     `
       UPDATE transactions
@@ -66,6 +67,15 @@ router.post("/:id/confirm-link", (req, res) => {
       WHERE id = ? AND user_id = ?
     `,
   ).run(receiptId, transactionId, USER_ID);
+
+  // ⭐ 5. Link receipt → transaction (belangrijk!)
+  db.prepare(
+    `
+      UPDATE receipts
+      SET transaction_id = ?
+      WHERE id = ? AND user_id = ?
+    `,
+  ).run(transactionId, receiptId, USER_ID);
 
   return res.json({
     action: "linked",

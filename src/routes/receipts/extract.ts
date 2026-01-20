@@ -3,7 +3,8 @@ import fs from "fs";
 import path from "path";
 import { db } from "../../lib/db";
 import { extractReceiptFromImage } from "../../ai/extractors/extractReceiptFromImage";
-import { determineMerchantCategory } from "../../utils/categorization";
+import { determineMerchantCategory } from "../../categorization/determineMerchantCategory";
+import { normalizeMerchant } from "../../utils/merchant.utils";
 
 const router = Router();
 const USER_ID = "demo-user";
@@ -50,25 +51,24 @@ router.post("/:id/extract", async (req, res) => {
     const extracted = await extractReceiptFromImage(buffer);
     const parsedJson = extracted.parsedJson;
 
-    console.log(
-      "🔍 EXTRACTED PARSED JSON:",
-      JSON.stringify(parsedJson, null, 2),
+    console.log("🔍 EXTRACTED PARSED JSON:", parsedJson);
+
+    // 5. Merchant normaliseren
+    const rawMerchant = parsedJson.merchant ?? "";
+    const normMerchant = normalizeMerchant(rawMerchant);
+
+    // 6. Categorisatie via nieuwe engine
+    const categorization = await determineMerchantCategory(
+      USER_ID,
+      normMerchant,
+      parsedJson.merchant ?? "",
     );
 
-    // 5. Merchant categorisatie
-    const merchantCategory = await determineMerchantCategory(parsedJson, db);
-    parsedJson.merchant_category = merchantCategory;
-    parsedJson.category = merchantCategory;
-    parsedJson.subcategory = null;
+    parsedJson.merchant = normMerchant;
+    parsedJson.category = categorization.category;
+    parsedJson.subcategory = categorization.subcategory;
 
-    // 6. Opslaan in DB
-    console.log("💾 SAVING TO DB:", {
-      merchant: parsedJson.merchant,
-      date: parsedJson.date,
-      total: parsedJson.total,
-      aiResult: parsedJson,
-    });
-
+    // 7. Opslaan in DB
     db.prepare(
       `
       UPDATE receipts
@@ -83,8 +83,8 @@ router.post("/:id/extract", async (req, res) => {
       WHERE id = ?
     `,
     ).run(
-      parsedJson.merchant ?? null,
-      parsedJson.merchant_category ?? null,
+      normMerchant,
+      categorization.category,
       parsedJson.date ?? null,
       parsedJson.total ?? null,
       extracted.ocrText ?? null,
@@ -92,14 +92,13 @@ router.post("/:id/extract", async (req, res) => {
       receipt.id,
     );
 
-    // ⭐ 7. Normalized block voor v2 matching engine
+    // 8. Normalized block voor matching v2
     const normalized = {
       amount: parsedJson.total ?? null,
       date: parsedJson.date ?? null,
-      merchant: parsedJson.merchant ?? null,
+      merchant: normMerchant,
     };
 
-    // 8. Response
     res.json({
       action: "extracted",
       receiptId: id,

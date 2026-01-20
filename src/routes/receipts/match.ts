@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "../../lib/db";
 import { matchingService } from "../../services/matching/matching.service";
 import { MatchResult, MatchInput } from "../../../../shared/types/matching";
+import { normalizeMerchant } from "../../utils/merchant.utils";
 
 const router = Router();
 const USER_ID = "demo-user";
@@ -44,29 +45,27 @@ router.get("/:id/match", async (req, res) => {
   console.log("🔍 MATCH DEBUG - aiResult from DB:", receipt.aiResult);
   console.log("🔍 MATCH DEBUG - Parsed extracted:", extracted);
 
-  // 3. VALIDATIE — AI RESULT MOET BESTAAN
+  // 3. VALIDATIE
   if (!extracted.total || !extracted.merchant) {
-    console.log("❌ VALIDATION FAILED:", {
-      hasTotal: !!extracted.total,
-      hasMerchant: !!extracted.merchant,
-    });
     return res.status(400).json({
       error: "Receipt has no merchant or total. AI analysis may have failed.",
     });
   }
 
-  // ⭐ ALS GEEN DATE: GEBRUIK VANDAAG
+  // 4. ALS GEEN DATE → VANDAAG
   if (!extracted.date) {
-    console.log("⚠️  No date on receipt, using today's date");
     extracted.date = new Date().toISOString().split("T")[0];
   }
 
-  // 4. MATCHING ENGINE V2
+  // ⭐ 5. NORMALIZE MERCHANT (CRUCIAAL!)
+  const normMerchant = normalizeMerchant(extracted.merchant);
+
+  // 6. MATCHING ENGINE V2
   const matchInput: MatchInput = {
     receiptId: receipt.id,
     amount: extracted.total,
     date: extracted.date,
-    merchant: extracted.merchant,
+    merchant: normMerchant,
   };
 
   const matchResult: MatchResult = matchingService.findMatch(
@@ -76,7 +75,6 @@ router.get("/:id/match", async (req, res) => {
 
   console.log("🔍 MATCH RESULT (v2):", matchResult);
 
-  // 5. TERUGSTUREN — DIRECT HET MATCHRESULT
   return res.json(matchResult);
 });
 

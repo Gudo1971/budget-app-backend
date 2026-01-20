@@ -3,9 +3,11 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 import { db } from "../../lib/db";
-import { findMatchingTransaction } from "../../ai/matching/findMatchingTransaction";
+
 import smartUploadReceipt from "./upload";
 import confirmLinkRoute from "./confirmLink";
+import { matchingService } from "../../services/matching/matching.service";
+import { normalizeMerchant } from "../../utils/merchant.utils";
 
 const router = Router();
 const USER_ID = "demo-user";
@@ -229,7 +231,7 @@ router.delete("/:id", (req: Request, res: Response) => {
 router.use("/", confirmLinkRoute);
 
 // ------------------------------------------------------------
-// GET /receipts/:id/match → AI matchen met transacties
+// GET /receipts/:id/match → AI matchen met transacties (v2)
 // ------------------------------------------------------------
 router.get("/:id/match", async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -263,14 +265,33 @@ router.get("/:id/match", async (req: Request, res: Response) => {
     extracted = {};
   }
 
-  const matchResult = await findMatchingTransaction({
-    receiptId: receipt.id,
-    amount: extracted.total ?? 0,
-    date: extracted.date ?? "",
-    merchant: extracted.merchant ?? "",
-  });
+  // Validatie
+  if (!extracted.total || !extracted.merchant) {
+    return res.status(400).json({
+      error: "Receipt has no merchant or total. AI analysis may have failed.",
+    });
+  }
 
-  res.json(matchResult);
+  // Als geen datum → vandaag
+  if (!extracted.date) {
+    extracted.date = new Date().toISOString().split("T")[0];
+  }
+
+  // ⭐ Normaliseer merchant (CRUCIAAL)
+  const normMerchant = normalizeMerchant(extracted.merchant);
+
+  // ⭐ Matching engine v2
+  const matchResult = matchingService.findMatch(
+    {
+      receiptId: receipt.id,
+      amount: extracted.total,
+      date: extracted.date,
+      merchant: normMerchant,
+    },
+    USER_ID,
+  );
+
+  return res.json(matchResult);
 });
 
 export default router;
