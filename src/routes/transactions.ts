@@ -34,7 +34,7 @@ router.post("/from-extracted", (req, res) => {
     receiptId: req.body.receiptId,
     extracted: req.body.extracted,
     form: req.body.form,
-    source: "extracted",
+    source: "extracted-receipt",
   });
 
   res.json(result);

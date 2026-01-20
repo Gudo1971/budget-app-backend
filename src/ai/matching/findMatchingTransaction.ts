@@ -2,8 +2,8 @@ import { normalizeMerchant } from "../helpers/normalizeMerchant";
 import { similarity } from "../helpers/similarity";
 import { db } from "../../lib/db";
 
-import { Transaction } from "../../types/Transaction";
-import { MatchInput, MatchResult } from "../../types/matching";
+import { Transaction } from "../../../../shared/types/Transaction";
+import { MatchInput, MatchResult } from "../../../../shared/types/matching";
 
 export async function findMatchingTransaction({
   receiptId,
@@ -39,42 +39,62 @@ export async function findMatchingTransaction({
   for (const tx of transactions) {
     const txMerchant = normalizeMerchant(tx.merchant);
 
-    const amountDiff = Math.abs(tx.amount - amount);
+    // ⭐ NORMALIZE AMOUNTS - bon é sempre positivo, transação pode ser negativa
+    const receiptAmount = Math.abs(amount);
+    const txAmount = Math.abs(tx.amount);
+    const amountDiff = Math.abs(receiptAmount - txAmount);
+
     const dayDiff =
       Math.abs(new Date(tx.date).getTime() - new Date(date).getTime()) /
       (1000 * 60 * 60 * 24);
     const merchantSim = similarity(normalizedMerchant, txMerchant);
 
-    // HARD FILTERS
-    if (amountDiff > 1) continue;
-    if (dayDiff > 2) continue;
-    if (merchantSim < 0.6) continue;
+    console.log(`🔍 Comparing with tx ${tx.id}:`, {
+      merchant: tx.merchant,
+      receiptAmount,
+      txAmount,
+      amountDiff,
+      dayDiff,
+      merchantSim,
+    });
+
+    // HARD FILTERS - MORE FLEXIBLE
+    if (amountDiff > 1) continue; // Bedrag max 1 euro verschil
+    // Date filter removed - bon kan geen datum hebben!
+    if (merchantSim < 0.6) continue; // Merchant moet toch 60% match
 
     // SCORE
     let score = 0;
 
-    // Amount scoring
+    // Amount scoring (MOST IMPORTANT)
     if (amountDiff <= 0.1) score += 60;
     else if (amountDiff <= 0.5) score += 40;
     else if (amountDiff <= 1) score += 20;
 
-    // Date scoring
+    // Date scoring (LESS IMPORTANT if receipt has no date)
     if (dayDiff === 0) score += 30;
     else if (dayDiff <= 1) score += 20;
-    else if (dayDiff <= 2) score += 10;
+    else if (dayDiff <= 3)
+      score += 10; // ← MEER FLEXIBEL
+    else if (dayDiff <= 7) score += 5; // ← WEEK TOLERANCE
 
     // Merchant scoring
     if (merchantSim >= 0.9) score += 10;
     else if (merchantSim >= 0.8) score += 7;
     else if (merchantSim >= 0.6) score += 4;
 
+    console.log(`  -> Score: ${score}`);
+
     // CLASSIFY
-    if (score >= 90) {
+    if (score >= 80) {
+      // ← LOWERED from 90
+      console.log(`✅ DUPLICATE FOUND (score: ${score})`);
       bestDuplicate = tx;
       break;
     }
 
-    if (score >= 70) {
+    if (score >= 60) {
+      // ← LOWERED from 70
       bestAiMatch = tx;
     }
 

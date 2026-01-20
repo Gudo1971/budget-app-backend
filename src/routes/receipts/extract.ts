@@ -51,11 +51,25 @@ router.post("/:id/extract", async (req, res) => {
 
     const parsedJson = extracted.parsedJson;
 
+    console.log(
+      "🔍 EXTRACTED PARSED JSON:",
+      JSON.stringify(parsedJson, null, 2),
+    );
+
     // 5. Merchant categorisatie
     const merchantCategory = await determineMerchantCategory(parsedJson, db);
     parsedJson.merchant_category = merchantCategory;
+    parsedJson.category = merchantCategory;
+    parsedJson.subcategory = null;
 
     // 6. Opslaan in DB
+    console.log("💾 SAVING TO DB:", {
+      merchant: parsedJson.merchant,
+      date: parsedJson.date,
+      total: parsedJson.total,
+      aiResult: parsedJson,
+    });
+
     db.prepare(
       `
   UPDATE receipts

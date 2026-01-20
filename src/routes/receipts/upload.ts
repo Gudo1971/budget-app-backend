@@ -2,7 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import { Request, Response } from "express";
 import { db } from "../../lib/db";
-import { MatchDuplicate } from "../../types/matching";
+import { MatchDuplicate } from "../../../../shared/types/matching";
 console.log(">>> SMART UPLOAD ROUTE ACTIVE <<<");
 const USER_ID = "demo-user";
 

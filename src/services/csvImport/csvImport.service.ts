@@ -24,8 +24,8 @@ export const csvImportService = {
         category_id: null,
       };
 
-      // 2. Uniform create flow
-      const created = transactionService.create({
+      // ⭐ FIX: wacht op database opslag
+      const created = await transactionService.create({
         receiptId: null,
         extracted,
         form,
