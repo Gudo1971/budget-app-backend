@@ -1,80 +1,61 @@
+import { getCategoryForMerchant } from "../services/merchantMemory/merchantMemory.service";
+import { normalizeMerchant } from "../utils/merchant.utils";
 import { aiChooseCategory } from "./aiChooseCategory";
-import { getMerchantMemory, upsertMerchantMemory } from "../lib/merchantMemory";
-import { guessSubcategory } from "./guessSubcategory";
-import { db } from "../lib/db";
+import { heuristicsChooseCategory } from "./heuristicsChooseCategory";
 
-export async function categorizeTransaction({
-  userId,
-  merchantName,
-  description,
-  amount,
-  date,
-}: {
-  userId: string;
-  merchantName: string;
-  description: string;
-  amount: number;
-  date: string;
-}) {
-  console.log("CATEGORIZE INPUT:", { merchantName, description });
+export async function categorizeTransaction(
+  userId: string,
+  merchant: string,
+  amount: number,
+  description?: string,
+): Promise<{
+  category: string | null;
+  subcategory: string | null;
+  source: "memory" | "ai" | "heuristic" | "fallback";
+}> {
+  const normMerchant = normalizeMerchant(merchant);
 
-  // 1. Haal categorieën uit DB
-  const rows = db
-    .prepare("SELECT name FROM categories WHERE user_id = ?")
-    .all(userId) as { name: string }[];
+  // 1. MEMORY
+  const memoryCategoryId = getCategoryForMerchant(userId, normMerchant);
 
-  const categories = rows.map((r) => r.name);
-
-  // 2. MEMORY FIRST
-  const memory = getMerchantMemory(userId, merchantName);
-  if (memory) {
-    console.log("CATEGORIZED RESULT (MEMORY):", memory);
-    return { ...memory, memoryApplied: true };
+  if (memoryCategoryId) {
+    return {
+      category: memoryCategoryId.toString(),
+      subcategory: null,
+      source: "memory",
+    };
   }
 
-  // 3. AI fallback
+  // 2. AI (returns string)
   const aiCategory = await aiChooseCategory(
-    merchantName,
-    description,
-    categories,
+    normMerchant,
+    description ?? "",
+    [],
   );
 
-  let category = aiCategory;
-  let subcategory: string | null = null;
-
-  // 4. Heuristieken (string-based)
-  const lower = (merchantName + " " + description).toLowerCase();
-
-  if (
-    lower.includes("netflix") ||
-    lower.includes("spotify") ||
-    lower.includes("youtube")
-  ) {
-    category = "Abonnementen";
-    subcategory = "Streaming";
+  if (aiCategory) {
+    return {
+      category: aiCategory,
+      subcategory: null,
+      source: "ai",
+    };
   }
 
-  if (
-    lower.includes("restaurant") ||
-    lower.includes("café") ||
-    lower.includes("eten")
-  ) {
-    category = "Restaurant";
-    subcategory = "Uit eten";
+  // 3. HEURISTICS (returns object)
+  const heuristic = heuristicsChooseCategory(normMerchant, amount, description);
+
+  if (heuristic?.category) {
+    return {
+      category: heuristic.category,
+      subcategory: heuristic.subcategory ?? null,
+      source: "heuristic",
+    };
   }
 
-  // 5. Subcategorie guessing
-  subcategory = guessSubcategory(category, merchantName, description);
-
-  const result = {
-    category,
-    subcategory,
-    memoryApplied: false,
+  // 4. FALLBACK
+  return {
+    category: "Other",
+    subcategory: null,
+    source: "fallback",
   };
-
-  // 6. Memory opslaan
-  upsertMerchantMemory(userId, merchantName, category, subcategory);
-
-  console.log("CATEGORIZED RESULT:", result);
-  return result;
 }
