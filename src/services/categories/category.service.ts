@@ -13,3 +13,6 @@ export function findOrCreateCategory(name: string): number {
 
   return insert.lastInsertRowid as number;
 }
+export async function createCategory() {
+  // TODO: implement
+}
