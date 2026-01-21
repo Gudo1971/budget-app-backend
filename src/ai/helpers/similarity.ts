@@ -1,4 +1,4 @@
-export function similarity(a: string, b: string): number {
+export function similarity(a?: string, b?: string): number {
   if (!a || !b) return 0;
 
   a = a.toLowerCase();
@@ -33,7 +33,7 @@ function levenshtein(a: string, b: string): number {
         matrix[i][j] = Math.min(
           matrix[i - 1][j - 1] + 1,
           matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
+          matrix[i - 1][j] + 1,
         );
       }
     }

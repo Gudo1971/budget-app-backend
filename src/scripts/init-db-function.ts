@@ -79,14 +79,15 @@ export function initDatabase() {
     -- ============================
     -- MERCHANT MEMORY
     -- ============================
-    CREATE TABLE IF NOT EXISTS merchant_memory (
+CREATE TABLE merchant_memory (
       user_id TEXT NOT NULL,
       merchant TEXT NOT NULL,
       category TEXT NOT NULL,
       subcategory TEXT,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP, category_id TEXT, subcategory_id TEXT,
       PRIMARY KEY (user_id, merchant)
     );
+    
 
     -- ============================
     -- SAVINGS GOALS

@@ -1,4 +1,4 @@
-export function normalizeMerchant(name: string): string {
+export function normalizeMerchant(name?: string): string {
   if (!name) return "";
 
   const cleaned = name.toLowerCase().replace(/[^a-z0-9]/g, "");

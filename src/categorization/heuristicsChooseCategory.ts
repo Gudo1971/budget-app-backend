@@ -19,7 +19,9 @@ export function heuristicsChooseCategory(
     lower.includes("restaurant") ||
     lower.includes("cafe") ||
     lower.includes("eten") ||
-    lower.includes("food")
+    lower.includes("food") ||
+    lower.includes("yoghurt") ||
+    lower.includes("yb")
   ) {
     return { category: "Restaurant", subcategory: "Uit eten" };
   }
@@ -28,8 +30,15 @@ export function heuristicsChooseCategory(
   if (
     lower.includes("ah") ||
     lower.includes("albert") ||
+    lower.includes("albertheijn") ||
     lower.includes("jumbo") ||
-    lower.includes("lidl")
+    lower.includes("lidl") ||
+    lower.includes("coop") ||
+    lower.includes("dirk") ||
+    lower.includes("plus") ||
+    lower.includes("supermarkt") ||
+    lower.includes("supermarket") ||
+    lower.includes("grocery")
   ) {
     return { category: "Boodschappen", subcategory: null };
   }

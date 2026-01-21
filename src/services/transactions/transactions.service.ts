@@ -1,6 +1,6 @@
 import { db } from "../../lib/db";
 import { normalizeDate } from "./transaction.utils";
-import { normalizeMerchant } from "../../utils/merchant.utils";
+import { cleanMerchant } from "../../utils/cleanMerchant";
 import { categorizeTransaction } from "../../categorization/categorizeTransaction";
 
 // ⭐ Uniforme mapping voor alle transacties
@@ -106,7 +106,7 @@ ORDER BY t.transaction_date DESC
 
     const normalizedDate = normalizeDate(date ?? new Date().toISOString());
     const normalizedAmount = parseFloat(String(amount));
-    const normMerchant = normalizeMerchant(merchant);
+    const normMerchant = cleanMerchant(merchant);
 
     // ⭐ DUPLICATE CHECK (normalized merchant)
     const existing = db

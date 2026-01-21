@@ -13,23 +13,30 @@ import {
 
 export const matchingService = {
   findMatch(input: MatchInput, userId: string): MatchResult {
-    const { receiptId, amount, date, merchant } = input;
+    const { receiptId, amount, date, merchant, transaction_date } = input;
 
+    // ------------------------------------------------------------
     // Normalize merchant + amount
-    const normMerchant = normalizeMerchant(merchant);
+    // ------------------------------------------------------------
+    const normMerchant = normalizeMerchant(merchant ?? "");
     const normalizedAmount = Math.abs(amount);
+
+    // Gebruik transaction_date als primaire datum
+    const baseDate = transaction_date ?? date ?? "";
 
     console.log("🔍 [MATCH v2] Starting match for:", {
       receiptId,
       amount,
       normalizedAmount,
       date,
+      transaction_date,
       merchant,
       normMerchant,
+      baseDate,
     });
 
     // ------------------------------------------------------------
-    // 1. DUPLICATE CHECK (exact match with normalized merchant)
+    // 1. DUPLICATE CHECK (exact match)
     // ------------------------------------------------------------
     const duplicate = db
       .prepare(
@@ -45,7 +52,7 @@ export const matchingService = {
       )
       .get(
         normalizedAmount,
-        date,
+        baseDate,
         normMerchant,
         userId,
       ) as MatchDuplicate | null;
@@ -65,7 +72,7 @@ export const matchingService = {
     // ------------------------------------------------------------
     // 2. AI MATCH (fuzzy + tolerances)
     // ------------------------------------------------------------
-    const dates = dateRange(date, 2);
+    const dates = dateRange(baseDate, 2);
 
     const rows = db
       .prepare(
