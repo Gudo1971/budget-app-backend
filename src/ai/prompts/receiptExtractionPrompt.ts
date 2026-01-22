@@ -50,9 +50,11 @@ Regels:
 JSON structuur:
 
 {
-  "merchant": "",
+  "merchant_raw": "",          // exact zoals op de bon
+  "merchant": "",              // NIET normaliseren, gewoon kopiëren
   "merchant_category": "",
-  "date": "",
+  "transaction_date": "",      // datum op de bon
+  "date": "",                  // fallback, zelfde als transaction_date als er maar één datum is
   "total": null,
   "subtotal": null,
   "tax": null,
@@ -67,5 +69,6 @@ JSON structuur:
     }
   ]
 }
+
 `;
 }

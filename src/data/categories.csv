@@ -1,7 +1,9 @@
 name,type
 Boodschappen,variable
-Uit eten,variable
+Horeca,variable
+Persoonlijke verzorging,variable
 Vervoer,variable
+Gezondheid,fixed
 Abonnementen,fixed
-Huur,fixed
-Energie,fixed
+Woonkosten,fixed
+Overig,variable

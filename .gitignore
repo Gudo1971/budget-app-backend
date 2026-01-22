@@ -1,6 +1,16 @@
+# Build output
+dist/
+
+# Dependencies
 node_modules/
+
+# Runtime uploads
 uploads/
+
+# SQLite
 *.db
 *.db-shm
 *.db-wal
+
+# Environment
 .env

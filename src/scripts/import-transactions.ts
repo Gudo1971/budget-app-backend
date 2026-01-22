@@ -1,45 +1,54 @@
-import { parseCsv } from "./csv.parser";
-import { transactionService } from "../services/transactions/transactions.service";
-import { db } from "../lib/db";
 import fs from "fs";
-import { categorizeTransaction } from "../categorization/categorizeTransaction";
+import { parseCsv } from "./csv.parser";
+import { normalizeMerchant } from "@shared/services/normalizeMerchant";
+import { transactionService } from "../services/transactions/transactions.service";
+import { findCategoryIdByName } from "../services/categories/category.service";
+import { mapCsvCategory } from "@shared/constants/categoryCsvMap";
 
 export async function importTransactionsCsv(filePath: string, userId: string) {
   const buffer = fs.readFileSync(filePath);
   const rows = await parseCsv(buffer);
 
   for (const row of rows) {
-    const merchantName = row.description;
-    const description = row.description;
+    const merchant_raw = row.description ?? "";
+    const normMerchant = normalizeMerchant(merchant_raw);
 
-    const categorized = await categorizeTransaction({
-      userId,
-      merchantName,
-      description,
-      amount: row.amount,
-      date: row.date,
-    });
+    const amount = Number(row.amount);
+    const date = row.date;
+    const description = row.description ?? normMerchant.display;
+
+    // ⭐ Gebruik centrale mapping
+    const mappedName = mapCsvCategory(row.category_name);
+
+    const categoryId = findCategoryIdByName(mappedName);
 
     await transactionService.create({
       receiptId: null,
       extracted: {
-        total: row.amount,
-        date: row.date,
-        merchant: merchantName,
-        merchant_category: categorized.category,
-        merchant_subcategory: categorized.subcategory,
+        total: amount,
+        date,
+        merchant_raw,
+        merchant: normMerchant.display,
+        merchant_category: {
+          category_id: categoryId,
+          confidence: 1,
+          source: "csv",
+        },
+        category: { category_id: categoryId, confidence: 1, source: "csv" },
+        subcategory: null,
       },
       form: {
-        amount: row.amount,
-        date: row.date,
-        merchant: merchantName,
-        description: row.description,
-        category: categorized.category,
-        subcategory: categorized.subcategory,
+        amount,
+        date,
+        merchant: normMerchant.display,
+        merchant_raw,
+        description,
+        category: { category_id: categoryId, confidence: 1, source: "csv" },
+        subcategory: null,
       },
       source: "csv",
     });
   }
 
-  console.log("CSV import complete with new categorization engine");
+  console.log("CSV import complete using shared category mapping");
 }

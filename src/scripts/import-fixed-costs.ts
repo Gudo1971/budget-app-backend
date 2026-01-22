@@ -1,6 +1,6 @@
 import fs from "fs";
 import { parseCsv } from "../scripts/csv.parser";
-import { createFixedCost } from "../services/fixed-costs/fixedCost.service";
+import { createFixedCost } from "../services/pdf/fixed-costs/fixedCost.service";
 
 export async function importFixedCostsCsv(path: string) {
   const buffer = fs.readFileSync(path);

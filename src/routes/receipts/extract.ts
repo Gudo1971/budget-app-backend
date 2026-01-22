@@ -3,7 +3,9 @@ import fs from "fs";
 import path from "path";
 import { db } from "../../lib/db";
 import { extractReceiptFromImage } from "../../ai/extractors/extractReceiptFromImage";
-import { determineMerchantCategory } from "../../utils/categorization";
+
+import { normalizeMerchant } from "@shared/services/normalizeMerchant";
+import { categorizeMerchant } from "../../services/merchantMemory/service/categorizeMerchant.service";
 
 const router = Router();
 const USER_ID = "demo-user";
@@ -50,41 +52,40 @@ router.post("/:id/extract", async (req, res) => {
     const extracted = await extractReceiptFromImage(buffer);
     const parsedJson = extracted.parsedJson;
 
-    console.log(
-      "🔍 EXTRACTED PARSED JSON:",
-      JSON.stringify(parsedJson, null, 2),
+    console.log("🔍 EXTRACTED PARSED JSON:", parsedJson);
+
+    // 5. Merchant normaliseren
+    const rawMerchant = parsedJson.merchant ?? "";
+    const normMerchant = normalizeMerchant(rawMerchant);
+
+    // 6. Categorisatie via nieuwe engine
+    const categorization = await categorizeMerchant(
+      USER_ID,
+      normMerchant.key,
+      normMerchant.display,
     );
 
-    // 5. Merchant categorisatie
-    const merchantCategory = await determineMerchantCategory(parsedJson, db);
-    parsedJson.merchant_category = merchantCategory;
-    parsedJson.category = merchantCategory;
-    parsedJson.subcategory = null;
+    // 7. Update parsedJson voor opslag + frontend
+    parsedJson.merchant = normMerchant.display;
+    parsedJson.category = categorization.category_id;
 
-    // 6. Opslaan in DB
-    console.log("💾 SAVING TO DB:", {
-      merchant: parsedJson.merchant,
-      date: parsedJson.date,
-      total: parsedJson.total,
-      aiResult: parsedJson,
-    });
+    parsedJson.subcategory = null; // tenzij je subcategories hebt
 
+    // 8. Opslaan in DB
     db.prepare(
       `
-      UPDATE receipts
-      SET
-        merchant = ?,
-        merchant_category = ?,
-        purchase_date = ?,
-        total = ?,
-        ocrText = ?,
-        aiResult = ?,
-        status = 'processed'
-      WHERE id = ?
-    `,
+    UPDATE receipts
+    SET
+      merchant = ?,
+      purchase_date = ?,
+      total = ?,
+      ocrText = ?,
+      aiResult = ?,
+      status = 'processed'
+    WHERE id = ?
+  `,
     ).run(
-      parsedJson.merchant ?? null,
-      parsedJson.merchant_category ?? null,
+      normMerchant.key,
       parsedJson.date ?? null,
       parsedJson.total ?? null,
       extracted.ocrText ?? null,
@@ -92,14 +93,13 @@ router.post("/:id/extract", async (req, res) => {
       receipt.id,
     );
 
-    // ⭐ 7. Normalized block voor v2 matching engine
+    // 9. Normalized block voor matching v2
     const normalized = {
       amount: parsedJson.total ?? null,
       date: parsedJson.date ?? null,
-      merchant: parsedJson.merchant ?? null,
+      merchant: normMerchant.key, // FIXED
     };
 
-    // 8. Response
     res.json({
       action: "extracted",
       receiptId: id,

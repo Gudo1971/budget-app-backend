@@ -10,60 +10,64 @@ export async function findMatchingTransaction({
   amount,
   date,
   merchant,
+  merchant_raw,
+  transaction_date,
 }: MatchInput): Promise<MatchResult> {
-  const normalizedMerchant = normalizeMerchant(merchant);
+  // ⭐ Input normalisatie
+  const inputMerchant = normalizeMerchant(merchant_raw ?? merchant);
 
-  // Typed DB query
+  // ⭐ Datum veilig bepalen
+  const inputDate = transaction_date ?? date ?? "";
+  const parsedInputDate = new Date(inputDate);
+
+  const inputAmount = Math.abs(amount);
+
+  // ⭐ Typed DB query
   const transactions = db
     .prepare(
       `
     SELECT 
       id,
       date,
+      transaction_date,
       description,
       amount,
       merchant,
+      merchant_raw,
       receipt_id,
       category_id,
-      category
+      category,
+      subcategory,
+      subcategory_id
     FROM transactions
     WHERE user_id = ?
     `,
     )
-    .all("demo-user") as Array<
-    Pick<
-      Transaction,
-      | "id"
-      | "date"
-      | "description"
-      | "amount"
-      | "merchant"
-      | "receipt_id"
-      | "category_id"
-      | "category"
-    >
-  >;
+    .all("demo-user") as Array<Transaction>;
 
   let bestDuplicate: Transaction | null = null;
   let bestAiMatch: Transaction | null = null;
   let candidates: Array<Transaction & { score: number }> = [];
 
   for (const tx of transactions) {
-    const txMerchant = normalizeMerchant(tx.merchant);
+    const txMerchant = normalizeMerchant(tx.merchant_raw ?? tx.merchant);
 
-    const receiptAmount = Math.abs(amount);
     const txAmount = Math.abs(tx.amount);
-    const amountDiff = Math.abs(receiptAmount - txAmount);
+    const amountDiff = Math.abs(inputAmount - txAmount);
 
+    const txDate = tx.transaction_date ?? tx.date;
     const dayDiff =
-      Math.abs(new Date(tx.date).getTime() - new Date(date).getTime()) /
+      Math.abs(new Date(txDate).getTime() - parsedInputDate.getTime()) /
       (1000 * 60 * 60 * 24);
 
-    const merchantSim = similarity(normalizedMerchant, txMerchant);
+    const merchantSim = similarity(inputMerchant, txMerchant);
 
     console.log(`🔍 Comparing with tx ${tx.id}:`, {
+      merchant_raw: tx.merchant_raw,
       merchant: tx.merchant,
-      receiptAmount,
+      txMerchant,
+      inputMerchant,
+      inputAmount,
       txAmount,
       amountDiff,
       dayDiff,
@@ -71,7 +75,7 @@ export async function findMatchingTransaction({
     });
 
     if (amountDiff > 1) continue;
-    if (merchantSim < 0.6) continue;
+    if (merchantSim < 0.5) continue;
 
     let score = 0;
 
@@ -90,12 +94,12 @@ export async function findMatchingTransaction({
 
     console.log(`  -> Score: ${score}`);
 
-    if (score >= 80) {
+    if (score >= 85) {
       bestDuplicate = tx;
       break;
     }
 
-    if (score >= 60) {
+    if (score >= 65) {
       bestAiMatch = tx;
     }
 

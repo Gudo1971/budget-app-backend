@@ -2,7 +2,10 @@ import fs from "fs";
 import { parseCsv } from "../scripts/csv.parser";
 import { savingGoalService } from "../services/saving-goals/savingsGoal.service";
 
-export async function importSavingsGoalsCsv(path: string) {
+export async function importSavingsGoalsCsv(
+  path: string,
+  userId: string = "demo-user",
+) {
   const buffer = fs.readFileSync(path);
   const rows = await parseCsv(buffer);
 
@@ -12,6 +15,7 @@ export async function importSavingsGoalsCsv(path: string) {
       target_amount: Number(row.target_amount),
       current_amount: Number(row.current_amount),
       deadline: row.deadline,
+      user_id: userId,
     });
   }
 

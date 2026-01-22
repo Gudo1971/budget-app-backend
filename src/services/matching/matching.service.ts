@@ -2,32 +2,42 @@ import { db } from "../../lib/db";
 import { similarity } from "./string.utils";
 import { dateRange } from "./date.utils";
 import { amountCloseEnough } from "./amount.utils";
-
+import { normalizeMerchant } from "@shared/services/normalizeMerchant";
 import {
   MatchInput,
   MatchResult,
   MatchDuplicate,
   MatchAiResult,
   MatchCandidate,
-} from "../../../../shared/types/matching"; // pas pad aan indien nodig
+} from "../../../../shared/types/matching";
 
 export const matchingService = {
   findMatch(input: MatchInput, userId: string): MatchResult {
-    const { receiptId, amount, date, merchant } = input;
+    const { receiptId, amount, date, merchant, transaction_date } = input;
 
-    // Normalize amount to absolute value for matching
+    // ------------------------------------------------------------
+    // Normalize merchant + amount
+    // ------------------------------------------------------------
+    const normMerchant = normalizeMerchant(merchant ?? "");
     const normalizedAmount = Math.abs(amount);
+
+    // Gebruik transaction_date als primaire datum
+    const baseDate = transaction_date ?? date ?? "";
 
     console.log("🔍 [MATCH v2] Starting match for:", {
       receiptId,
       amount,
       normalizedAmount,
       date,
+      transaction_date,
       merchant,
+      canonicalKey: normMerchant.key,
+      displayName: normMerchant.display,
+      baseDate,
     });
 
     // ------------------------------------------------------------
-    // 1. DUPLICATE CHECK (exact match with normalized amounts)
+    // 1. DUPLICATE CHECK (exact match)
     // ------------------------------------------------------------
     const duplicate = db
       .prepare(
@@ -36,15 +46,15 @@ export const matchingService = {
         FROM transactions
         WHERE ABS(amount) = ?
           AND DATE(transaction_date) = DATE(?)
-          AND LOWER(merchant) = LOWER(?)
+          AND merchant = ?
           AND user_id = ?
           AND receipt_id IS NULL
       `,
       )
       .get(
         normalizedAmount,
-        date,
-        merchant.toLowerCase(),
+        baseDate,
+        normMerchant.key, // FIXED
         userId,
       ) as MatchDuplicate | null;
 
@@ -63,7 +73,7 @@ export const matchingService = {
     // ------------------------------------------------------------
     // 2. AI MATCH (fuzzy + tolerances)
     // ------------------------------------------------------------
-    const dates = dateRange(date, 2);
+    const dates = dateRange(baseDate, 2);
 
     const rows = db
       .prepare(
@@ -92,10 +102,13 @@ export const matchingService = {
     const candidates: MatchCandidate[] = [];
 
     for (const row of rows) {
-      // Use absolute values for amount comparison
+      const rowNormMerchant = normalizeMerchant(row.merchant);
+
+      // Amount tolerance
       if (!amountCloseEnough(normalizedAmount, Math.abs(row.amount))) continue;
 
-      const score = similarity(merchant, row.merchant);
+      // Fuzzy merchant similarity (canonical keys)
+      const score = similarity(normMerchant.key, rowNormMerchant.key); // FIXED
 
       if (score >= 0.4) {
         candidates.push({
