@@ -1,0 +1,10 @@
+category_id,name,user_id
+1,Groente & Fruit,demo-user
+1,Dranken,demo-user
+1,Snacks,demo-user
+2,Restaurants,demo-user
+2,Cafés,demo-user
+3,Haarverzorging,demo-user
+3,Huidverzorging,demo-user
+4,Trein,demo-user
+4,Bus,demo-user

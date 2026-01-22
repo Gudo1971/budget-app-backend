@@ -1,7 +1,7 @@
 import { db } from "../../lib/db";
 import { normalizeDate } from "./transaction.utils";
-import { cleanMerchant } from "../../utils/cleanMerchant";
-import { categorizeTransaction } from "../../categorization/categorizeTransaction";
+import { normalizeMerchant } from "@shared/services/normalizeMerchant";
+import { categorizeMerchant } from "../merchantMemory/service/categorizeMerchant.service";
 
 // ⭐ Uniforme mapping voor alle transacties
 function mapTransaction(row: any) {
@@ -14,8 +14,8 @@ function mapTransaction(row: any) {
 
     receipt_id: row.receipt_id ?? null,
 
-    category: row.category ?? null,
-    subcategory: row.subcategory ?? null,
+    category_id: row.category_id ?? null,
+    subcategory_id: row.subcategory_id ?? null,
 
     recurring: row.recurring === 1,
 
@@ -43,12 +43,11 @@ SELECT
   t.id,
   t.receipt_id,
   t.amount,
-  t.date,
   t.transaction_date,
   t.merchant,
   t.description,
-  t.category,
-  t.subcategory,
+  t.category_id,
+  t.subcategory_id,
   t.user_id,
   t.recurring,
 
@@ -106,9 +105,11 @@ ORDER BY t.transaction_date DESC
 
     const normalizedDate = normalizeDate(date ?? new Date().toISOString());
     const normalizedAmount = parseFloat(String(amount));
-    const normMerchant = cleanMerchant(merchant);
 
-    // ⭐ DUPLICATE CHECK (normalized merchant)
+    // ⭐ Nieuwe merchant normalisatie
+    const normMerchant = normalizeMerchant(merchant);
+
+    // ⭐ DUPLICATE CHECK (canonical merchant key)
     const existing = db
       .prepare(
         `
@@ -122,11 +123,9 @@ ORDER BY t.transaction_date DESC
       .get(
         normalizedDate,
         normalizedAmount,
-        normMerchant,
+        normMerchant.key,
         userId || "demo-user",
-      ) as {
-      id: number;
-    } | null;
+      ) as { id: number } | null;
 
     if (existing?.id) {
       if (receiptId) {
@@ -146,39 +145,47 @@ ORDER BY t.transaction_date DESC
       };
     }
 
-    // ⭐ CATEGORISATIE (nieuwe engine)
-    const categorization = await categorizeTransaction(
-      userId || "demo-user",
-      normMerchant,
-      normalizedAmount,
-      description ?? "",
-    );
+    // ⭐ Nieuwe categorisatie-engine
+    // ⭐ Gebruik CSV / form category als die bestaat
+    let categoryId;
+
+    if (body.form?.category?.category_id) {
+      categoryId = body.form.category.category_id;
+    } else {
+      // Anders: AI fallback
+      const categoryResult = await categorizeMerchant(
+        userId || "demo-user",
+        normMerchant.key,
+        normMerchant.display,
+      );
+      categoryId = categoryResult.category_id;
+    }
 
     const stmt = db.prepare(`
-      INSERT INTO transactions (
-        receipt_id,
-        amount,
-        date,
-        transaction_date,
-        merchant,
-        description,
-        category,
-        subcategory,
-        user_id
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+  INSERT INTO transactions (
+    receipt_id,
+    amount,
+    transaction_date,
+    merchant,
+    description,
+    category_id,
+    subcategory_id,
+    user_id,
+    recurring
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
 
     const result = stmt.run(
       receiptId ?? null,
       normalizedAmount,
       normalizedDate,
-      normalizedDate,
-      normMerchant,
-      description ?? normMerchant,
-      categorization.category,
-      categorization.subcategory,
+      normMerchant.display,
+      description ?? normMerchant.display,
+      categoryId,
+      null, // subcategory_id
       userId || "demo-user",
+      0,
     );
 
     db.pragma("wal_checkpoint(TRUNCATE)");
@@ -190,10 +197,10 @@ ORDER BY t.transaction_date DESC
         receipt_id: receiptId ?? null,
         amount: normalizedAmount,
         date: normalizedDate,
-        merchant: normMerchant,
-        description: description ?? normMerchant,
-        category: categorization.category,
-        subcategory: categorization.subcategory,
+        merchant: normMerchant.display,
+        description: description ?? normMerchant.display,
+        category_id: categoryId,
+        subcategory_id: null,
         recurring: false,
         receipt: null,
         userId: userId || "demo-user",

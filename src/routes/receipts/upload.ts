@@ -39,7 +39,7 @@ export default async function smartUploadReceipt(req: Request, res: Response) {
           r.transaction_id AS transactionId,
           t.id AS id,
           t.amount AS amount,
-          t.date AS date,
+          t.transaction_date AS date,
           t.merchant AS merchant
         FROM receipts r
         LEFT JOIN transactions t ON r.transaction_id = t.id

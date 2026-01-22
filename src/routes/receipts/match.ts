@@ -2,8 +2,7 @@ import { Router } from "express";
 import { db } from "../../lib/db";
 import { matchingService } from "../../services/matching/matching.service";
 import { MatchResult, MatchInput } from "../../../../shared/types/matching";
-import { normalizeMerchant } from "../../utils/merchant.utils";
-
+import { normalizeMerchant } from "@shared/services/normalizeMerchant";
 const router = Router();
 const USER_ID = "demo-user";
 
@@ -65,7 +64,8 @@ router.get("/:id/match", async (req, res) => {
     receiptId: receipt.id,
     amount: extracted.total,
     date: extracted.date,
-    merchant: normMerchant,
+    merchant: normMerchant.key, // ✔ string
+    merchant_raw: normMerchant.display, // optioneel maar handig
   };
 
   const matchResult: MatchResult = matchingService.findMatch(

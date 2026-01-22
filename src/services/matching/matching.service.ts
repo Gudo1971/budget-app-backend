@@ -2,7 +2,7 @@ import { db } from "../../lib/db";
 import { similarity } from "./string.utils";
 import { dateRange } from "./date.utils";
 import { amountCloseEnough } from "./amount.utils";
-import { normalizeMerchant } from "../../utils/merchant";
+import { normalizeMerchant } from "@shared/services/normalizeMerchant";
 import {
   MatchInput,
   MatchResult,
@@ -31,7 +31,8 @@ export const matchingService = {
       date,
       transaction_date,
       merchant,
-      normMerchant,
+      canonicalKey: normMerchant.key,
+      displayName: normMerchant.display,
       baseDate,
     });
 
@@ -53,7 +54,7 @@ export const matchingService = {
       .get(
         normalizedAmount,
         baseDate,
-        normMerchant,
+        normMerchant.key, // FIXED
         userId,
       ) as MatchDuplicate | null;
 
@@ -106,8 +107,8 @@ export const matchingService = {
       // Amount tolerance
       if (!amountCloseEnough(normalizedAmount, Math.abs(row.amount))) continue;
 
-      // Fuzzy merchant similarity
-      const score = similarity(normMerchant, rowNormMerchant);
+      // Fuzzy merchant similarity (canonical keys)
+      const score = similarity(normMerchant.key, rowNormMerchant.key); // FIXED
 
       if (score >= 0.4) {
         candidates.push({

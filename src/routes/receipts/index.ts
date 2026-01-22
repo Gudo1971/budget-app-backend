@@ -7,8 +7,7 @@ import { db } from "../../lib/db";
 import smartUploadReceipt from "./upload";
 import confirmLinkRoute from "./confirmLink";
 import { matchingService } from "../../services/matching/matching.service";
-import { normalizeMerchant } from "../../utils/merchant.utils";
-
+import { normalizeMerchant } from "@shared/services/normalizeMerchant";
 const router = Router();
 const USER_ID = "demo-user";
 
@@ -286,7 +285,8 @@ router.get("/:id/match", async (req: Request, res: Response) => {
       receiptId: receipt.id,
       amount: extracted.total,
       date: extracted.date,
-      merchant: normMerchant,
+      merchant: normMerchant.key, // ✔ string
+      merchant_raw: normMerchant.display, // ✔ optioneel maar handig
     },
     USER_ID,
   );

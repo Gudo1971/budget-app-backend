@@ -1,18 +1,9 @@
 import { db } from "../../lib/db";
 
-export function findOrCreateCategory(name: string): number {
+export function findCategoryIdByName(name: string): number | null {
   const existing = db
     .prepare("SELECT id FROM categories WHERE LOWER(name) = LOWER(?)")
-    .get(name) as { id: number } | null;
+    .get(name) as { id: number } | undefined;
 
-  if (existing?.id) return existing.id;
-
-  const insert = db
-    .prepare("INSERT INTO categories (name, type) VALUES (?, ?)")
-    .run(name, "variable") as { lastInsertRowid: number };
-
-  return insert.lastInsertRowid as number;
-}
-export async function createCategory() {
-  // TODO: implement
+  return existing?.id ?? null;
 }

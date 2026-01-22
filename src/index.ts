@@ -20,15 +20,52 @@ import merchantCategoryRoute from "./routes/merchant-categories";
 import { aiPdfExtractRouter } from "./routes/ai/aiPdfextract";
 import smartUploadReceipt from "./routes/receipts/upload";
 
-import { migrateReceiptsTable } from "./lib/migrations";
 import archiveRoutes from "./routes/receipts/archive";
+import { debugRouter } from "./routes/debug.routes";
+import fetch from "node-fetch";
 
-// ⭐ Migraties uitvoeren
-migrateReceiptsTable();
+// ⭐ Helper: run daily at specific time
+function runAt(hour: number, minute: number, callback: () => void) {
+  const now = new Date();
+  const next = new Date();
+
+  next.setHours(hour, minute, 0, 0);
+
+  if (next <= now) {
+    next.setDate(next.getDate() + 1);
+  }
+
+  const delay = next.getTime() - now.getTime();
+
+  setTimeout(() => {
+    callback();
+    setInterval(callback, 24 * 60 * 60 * 1000);
+  }, delay);
+}
+
+// ⭐ Cronjob wrapper
+async function retrainLowConfidence(PORT: number) {
+  try {
+    console.log("[cron] Running low-confidence retraining...");
+
+    const response = await fetch(
+      `http://localhost:${PORT}/debug/retrain-low-confidence`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+
+    const result = await response.json();
+    console.log("[cron] Retrain result:", result);
+  } catch (err) {
+    console.error("[cron] Error during retraining:", err);
+  }
+}
 
 console.log("🔥 INDEX STARTED");
 
-const app = express(); // <-- DIT MOET BOVEN ALLE app.use() STAAN
+const app = express();
 
 app.use(
   cors({
@@ -43,7 +80,7 @@ app.use("/api/ai", aiPdfExtractRouter);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
-// ⭐ API ROUTES (nu op de juiste plek)
+// ⭐ API ROUTES
 app.use("/api/transactions", transactionsRouter);
 app.use("/api/categories", categoriesRouter);
 app.use("/api/budgets", budgetRouter);
@@ -55,7 +92,7 @@ app.use("/api/receipts", receiptsRouter);
 app.use("/api/items", itemRoutes);
 app.use("/api/merchant-categories", merchantCategoryRoute);
 app.use("/api/receipts", archiveRoutes);
-
+app.use("/debug", debugRouter);
 app.post("/api/receipts/upload", smartUploadReceipt);
 
 app.use(errorHandler);
@@ -65,4 +102,7 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log("Using DB file:", path.resolve("budget.db"));
+
+  // ⭐ Start cronjob at 03:00 every night
+  runAt(3, 0, () => retrainLowConfidence(Number(PORT)));
 });
