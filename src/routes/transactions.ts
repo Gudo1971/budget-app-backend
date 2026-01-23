@@ -15,18 +15,18 @@ router.get("/", (req, res) => {
 });
 
 // ⭐ POST: Create transaction (supports both old & new format)
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   console.log("RAW BODY:", req.body);
 
   // ⭐ Doorgeven wat de frontend stuurt - service bepaalt format
-  const result = transactionService.create(req.body);
+  const result = await transactionService.create(req.body);
 
   res.json(result);
 });
 
 // ⭐ POST: from extracted receipt
-router.post("/from-extracted", (req, res) => {
-  const result = transactionService.create({
+router.post("/from-extracted", async (req, res) => {
+  const result = await transactionService.create({
     receiptId: req.body.receiptId,
     extracted: req.body.extracted,
     form: req.body.form,

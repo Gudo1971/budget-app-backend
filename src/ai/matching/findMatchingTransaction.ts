@@ -1,4 +1,4 @@
-import { normalizeMerchant } from "../helpers/normalizeMerchant";
+import { normalizeMerchant } from "@shared/services/normalizeMerchant";
 import { similarity } from "../helpers/similarity";
 import { db } from "../../lib/db";
 
@@ -14,7 +14,7 @@ export async function findMatchingTransaction({
   transaction_date,
 }: MatchInput): Promise<MatchResult> {
   // ⭐ Input normalisatie
-  const inputMerchant = normalizeMerchant(merchant_raw ?? merchant);
+  const inputMerchant = normalizeMerchant(merchant_raw ?? merchant).display;
 
   // ⭐ Datum veilig bepalen
   const inputDate = transaction_date ?? date ?? "";
@@ -50,7 +50,9 @@ export async function findMatchingTransaction({
   let candidates: Array<Transaction & { score: number }> = [];
 
   for (const tx of transactions) {
-    const txMerchant = normalizeMerchant(tx.merchant_raw ?? tx.merchant);
+    const txMerchant = normalizeMerchant(
+      tx.merchant_raw ?? tx.merchant,
+    ).display;
 
     const txAmount = Math.abs(tx.amount);
     const amountDiff = Math.abs(inputAmount - txAmount);
