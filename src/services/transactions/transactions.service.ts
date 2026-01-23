@@ -2,23 +2,23 @@ import { db } from "../../lib/db";
 import { normalizeDate } from "./transaction.utils";
 import { normalizeMerchant } from "@shared/services/normalizeMerchant";
 import { categorizeMerchant } from "../merchantMemory/service/categorizeMerchant.service";
+import { upsertMerchantMemory } from "../merchantMemory/service/merchantMemory.service";
+import { transactionRepository } from "../../repositories/transactions.repository";
 
 // ⭐ Uniforme mapping voor alle transacties
 function mapTransaction(row: any) {
+  const normalized = normalizeMerchant(row.merchant);
+
   return {
     id: row.id,
     date: row.transaction_date,
     description: row.description,
     amount: row.amount,
-    merchant: row.merchant,
-
+    merchant: normalized.display,
     receipt_id: row.receipt_id ?? null,
-
     category_id: row.category_id ?? null,
     subcategory_id: row.subcategory_id ?? null,
-
     recurring: row.recurring === 1,
-
     receipt: row.receipt_id
       ? {
           url: `/uploads/${row.receipt_filename}`,
@@ -28,7 +28,6 @@ function mapTransaction(row: any) {
             : null,
         }
       : null,
-
     userId: row.user_id,
   };
 }
@@ -50,10 +49,8 @@ SELECT
   t.subcategory_id,
   t.user_id,
   t.recurring,
-
   r.filename AS receipt_filename,
   r.aiResult AS receipt_ai_result
-
 FROM transactions t
 LEFT JOIN receipts r ON r.id = t.receipt_id
 ORDER BY t.transaction_date DESC
@@ -74,12 +71,9 @@ ORDER BY t.transaction_date DESC
 
     let amount, date, merchant, description, receiptId, userId;
 
-    // Nieuw format
     if (body.amount !== undefined && body.merchant !== undefined) {
       ({ amount, date, merchant, description, receiptId, userId } = body);
-    }
-    // Oud format (seed/csv)
-    else if (body.form && body.extracted) {
+    } else if (body.form && body.extracted) {
       const { form, extracted, receiptId: rid } = body;
       amount = form.amount || extracted.total;
       date = form.date || extracted.date;
@@ -105,11 +99,8 @@ ORDER BY t.transaction_date DESC
 
     const normalizedDate = normalizeDate(date ?? new Date().toISOString());
     const normalizedAmount = parseFloat(String(amount));
-
-    // ⭐ Nieuwe merchant normalisatie
     const normMerchant = normalizeMerchant(merchant);
 
-    // ⭐ DUPLICATE CHECK (canonical merchant key)
     const existing = db
       .prepare(
         `
@@ -145,14 +136,13 @@ ORDER BY t.transaction_date DESC
       };
     }
 
-    // ⭐ Nieuwe categorisatie-engine
-    // ⭐ Gebruik CSV / form category als die bestaat
     let categoryId;
 
-    if (body.form?.category?.category_id) {
+    if (body.category_id) {
+      categoryId = body.category_id;
+    } else if (body.form?.category?.category_id) {
       categoryId = body.form.category.category_id;
     } else {
-      // Anders: AI fallback
       const categoryResult = await categorizeMerchant(
         userId || "demo-user",
         normMerchant.key,
@@ -162,31 +152,35 @@ ORDER BY t.transaction_date DESC
     }
 
     const stmt = db.prepare(`
-  INSERT INTO transactions (
-    receipt_id,
-    amount,
-    transaction_date,
-    merchant,
-    description,
-    category_id,
-    subcategory_id,
-    user_id,
-    recurring
-  )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-`);
+      INSERT INTO transactions (
+        receipt_id,
+        amount,
+        transaction_date,
+        merchant,
+        description,
+        category_id,
+        subcategory_id,
+        user_id,
+        recurring
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
 
     const result = stmt.run(
       receiptId ?? null,
       normalizedAmount,
       normalizedDate,
-      normMerchant.display,
+      normMerchant.key,
       description ?? normMerchant.display,
       categoryId,
-      null, // subcategory_id
+      null,
       userId || "demo-user",
       0,
     );
+
+    if (categoryId) {
+      upsertMerchantMemory(userId || "demo-user", normMerchant.key, categoryId);
+    }
 
     db.pragma("wal_checkpoint(TRUNCATE)");
 
@@ -209,5 +203,29 @@ ORDER BY t.transaction_date DESC
       },
       error: null,
     };
+  },
+
+  // ⭐ FILTER FLOW
+  async filter(params: {
+    userId: string;
+
+    // single
+    year?: number;
+    month?: number;
+    week?: number;
+
+    // multi
+    years?: number[];
+    months?: number[];
+    weeks?: number[];
+
+    // custom
+    from?: string;
+    to?: string;
+
+    // legacy
+    dates?: string[];
+  }) {
+    return transactionRepository.filter(params);
   },
 };
