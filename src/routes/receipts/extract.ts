@@ -58,7 +58,7 @@ router.post("/:id/extract", async (req, res) => {
     const rawMerchant = parsedJson.merchant ?? "";
     const normMerchant = normalizeMerchant(rawMerchant);
 
-    // 6. Categorisatie via nieuwe engine
+    // 6. ⭐ AI categorization for SUGGESTION only (not saved in transaction)
     const categorization = await categorizeMerchant(
       USER_ID,
       normMerchant.key,
@@ -67,9 +67,10 @@ router.post("/:id/extract", async (req, res) => {
 
     // 7. Update parsedJson voor opslag + frontend
     parsedJson.merchant = normMerchant.display;
-    parsedJson.category = categorization.category_id;
+    parsedJson.merchant_category = categorization.category_id; // ⭐ For suggestion only
+    parsedJson.category = null; // User will set this
 
-    parsedJson.subcategory = null; // tenzij je subcategories hebt
+    parsedJson.subcategory = null;
 
     // 8. Opslaan in DB
     db.prepare(

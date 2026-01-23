@@ -2,15 +2,19 @@ import { db } from "../../lib/db";
 import { normalizeDate } from "./transaction.utils";
 import { normalizeMerchant } from "@shared/services/normalizeMerchant";
 import { categorizeMerchant } from "../merchantMemory/service/categorizeMerchant.service";
+import { upsertMerchantMemory } from "../merchantMemory/service/merchantMemory.service";
 
 // ⭐ Uniforme mapping voor alle transacties
 function mapTransaction(row: any) {
+  // Convert canonical key back to display name for UI
+  const normalized = normalizeMerchant(row.merchant);
+
   return {
     id: row.id,
     date: row.transaction_date,
     description: row.description,
     amount: row.amount,
-    merchant: row.merchant,
+    merchant: normalized.display, // Show human-friendly name
 
     receipt_id: row.receipt_id ?? null,
 
@@ -149,10 +153,14 @@ ORDER BY t.transaction_date DESC
     // ⭐ Gebruik CSV / form category als die bestaat
     let categoryId;
 
-    if (body.form?.category?.category_id) {
+    if (body.category_id) {
+      // Direct category_id from form
+      categoryId = body.category_id;
+    } else if (body.form?.category?.category_id) {
+      // Legacy format
       categoryId = body.form.category.category_id;
     } else {
-      // Anders: AI fallback
+      // Otherwise: AI fallback
       const categoryResult = await categorizeMerchant(
         userId || "demo-user",
         normMerchant.key,
@@ -180,13 +188,18 @@ ORDER BY t.transaction_date DESC
       receiptId ?? null,
       normalizedAmount,
       normalizedDate,
-      normMerchant.display,
-      description ?? normMerchant.display,
+      normMerchant.key, // Store canonical key for deduplication
+      description ?? normMerchant.display, // Display name for description
       categoryId,
       null, // subcategory_id
       userId || "demo-user",
       0,
     );
+
+    // ⭐ SAVE TO MERCHANT MEMORY - User's choice becomes the "truth"
+    if (categoryId) {
+      upsertMerchantMemory(userId || "demo-user", normMerchant.key, categoryId);
+    }
 
     db.pragma("wal_checkpoint(TRUNCATE)");
 

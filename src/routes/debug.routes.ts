@@ -20,9 +20,24 @@ debugRouter.get("/merchant-memory", (req, res) => {
       ORDER BY confidence ASC
     `,
     )
-    .all();
+    .all() as Array<{
+    user_id: string;
+    merchant: string;
+    category_id: number;
+    confidence: number;
+  }>;
 
-  res.json(rows);
+  // Map DB format to MerchantMemoryRecord type
+  const mapped = rows.map((row) => ({
+    key: row.merchant,
+    display: row.merchant, // DB stores canonical key, not display name
+    category_id: row.category_id,
+    subcategory_id: null,
+    confidence: row.confidence,
+    user_id: row.user_id,
+  }));
+
+  res.json(mapped);
 });
 
 debugRouter.get("/merchant-memory/low-confidence", (req, res) => {
@@ -39,9 +54,24 @@ debugRouter.get("/merchant-memory/low-confidence", (req, res) => {
       ORDER BY confidence ASC
     `,
     )
-    .all();
+    .all() as Array<{
+    user_id: string;
+    merchant: string;
+    category_id: number;
+    confidence: number;
+  }>;
 
-  res.json(rows);
+  // Map DB format to MerchantMemoryRecord type
+  const mapped = rows.map((row) => ({
+    key: row.merchant,
+    display: row.merchant,
+    category_id: row.category_id,
+    subcategory_id: null,
+    confidence: row.confidence,
+    user_id: row.user_id,
+  }));
+
+  res.json(mapped);
 });
 debugRouter.post("/retrain", async (req, res) => {
   const { userId, merchant } = req.body;
