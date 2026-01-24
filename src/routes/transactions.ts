@@ -14,13 +14,48 @@ router.get("/", (req, res) => {
   res.json(transactions);
 });
 
-// ⭐ POST: Create transaction (supports both old & new format)
+// ⭐ POST: Filtered transactions (PeriodSelector v2)
+router.post("/filter", async (req, res) => {
+  try {
+    const period = req.body;
+
+    if (!period.userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+
+    const result = await transactionService.filter({
+      userId: String(period.userId),
+
+      // single
+      year: period.year,
+      month: period.month,
+
+      // single week → convert to array
+      weeks: period.week
+        ? [String(period.week)]
+        : period.weeks
+          ? period.weeks.map(String)
+          : undefined,
+
+      // multi
+      months: period.months,
+      years: period.years,
+
+      // custom
+      from: period.from,
+      to: period.to,
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error("❌ POST /filter error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ⭐ POST: Create transaction
 router.post("/", async (req, res) => {
-  console.log("RAW BODY:", req.body);
-
-  // ⭐ Doorgeven wat de frontend stuurt - service bepaalt format
   const result = await transactionService.create(req.body);
-
   res.json(result);
 });
 
