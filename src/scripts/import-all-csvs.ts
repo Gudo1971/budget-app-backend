@@ -11,7 +11,10 @@ import { importBudgetCategoriesCsv } from "./import-budget-categories";
 import { importFixedCostsCsv } from "./import-fixed-costs";
 import { importSavingsGoalsCsv } from "./import-savings-goals";
 import { importTransactionsCsv } from "./import-transactions";
+import { importMerchantMemoryCsv } from "./import-merchant-memory";
+
 import { importSubcategoriesCsv } from "./import-subcategories";
+import e from "express";
 
 async function importAllCsvs() {
   const dataDir = path.join(__dirname, "..", "data");
@@ -60,6 +63,7 @@ async function importAllCsvs() {
     "budget_categories.csv",
     "fixed_costs.csv",
     "savings_goals.csv",
+    "merchant_memory.csv",
     "transactions.csv",
   ];
 
@@ -87,6 +91,8 @@ async function importAllCsvs() {
       await importFixedCostsCsv(filePath);
     } else if (file === "savings_goals.csv") {
       await importSavingsGoalsCsv(filePath, "demo-user");
+    } else if (file === "merchant_memory.csv") {
+      await importMerchantMemoryCsv(1);
     } else if (file === "transactions.csv") {
       await importTransactionsCsv(filePath, "demo-user");
     }

@@ -23,7 +23,7 @@ import smartUploadReceipt from "./routes/receipts/upload";
 import archiveRoutes from "./routes/receipts/archive";
 import { debugRouter } from "./routes/debug.routes";
 import fetch from "node-fetch";
-
+import summaryRouter from "./routes/summary";
 // ⭐ Helper: run daily at specific time
 function runAt(hour: number, minute: number, callback: () => void) {
   const now = new Date();
@@ -94,6 +94,7 @@ app.use("/api/merchant-categories", merchantCategoryRoute);
 app.use("/api/receipts", archiveRoutes);
 app.use("/debug", debugRouter);
 app.post("/api/receipts/upload", smartUploadReceipt);
+app.use("/api/summary", summaryRouter);
 
 app.use(errorHandler);
 

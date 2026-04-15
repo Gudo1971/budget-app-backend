@@ -5,11 +5,15 @@ import { findCategoryIdByName } from "../services/categories/category.service";
 
 const CATEGORY_MAP: Record<string, string> = {
   Boodschappen: "Boodschappen",
-  "Uit eten": "Horeca",
+  Horeca: "Horeca",
   Vervoer: "Vervoer",
-  Abonnementen: "Overig",
-  Huur: "Overig",
-  Energie: "Overig",
+  Abonnementen: "Abonnementen",
+  Woonkosten: "Woonkosten",
+
+  // oude normalisaties
+  "Uit eten": "Horeca",
+  Huur: "Woonkosten",
+  Energie: "Woonkosten",
 };
 
 export async function importBudgetCategoriesCsv(path: string) {

@@ -1,44 +1,74 @@
 import fs from "fs";
-import { transactionService } from "../services/transactions/transactions.service";
-import { parseCsv } from "../scripts/csv.parser"; // buffer-based parser
+import path from "path";
+import csv from "csv-parser";
 
-async function importCsv(filePath: string) {
-  // 1. Lees CSV-bestand in als Buffer
-  const buffer = fs.readFileSync(filePath);
+import { resolveMerchantMemory } from "../services/merchantMemory/service/resolveMerchantMemory";
+import { resolveCategory } from "../services/categories/resolveCategory";
+import { db } from "../lib/db";
 
-  // 2. Parse CSV vanuit Buffer
-  const rows = await parseCsv(buffer);
+const userId = "demo-user"; // <-- jouw user
 
-  const results = [];
+export async function importCsv(filePath: string) {
+  return new Promise<void>((resolve, reject) => {
+    const rows: any[] = [];
 
-  for (const row of rows) {
-    const extracted = {
-      total: row.amount,
-      date: row.date,
-      merchant: row.merchant,
-      merchant_category: row.category ?? null,
-    };
+    fs.createReadStream(path.resolve(filePath))
+      .pipe(csv())
+      .on("data", (row) => rows.push(row))
+      .on("end", async () => {
+        try {
+          for (const row of rows) {
+            const merchant = row.merchant || row.Merchant || row.MERCHANT;
+            const description =
+              row.description || row.Description || row.DESCRIPTION;
+            const amount = parseFloat(row.amount || row.Amount || row.AMOUNT);
 
-    const form = {
-      amount: row.amount,
-      date: row.date,
-      merchant: row.merchant,
-      description: row.description ?? row.merchant,
-      category_id: null,
-    };
+            // 1. Merchant memory
+            const merchantResolved = await resolveMerchantMemory(
+              userId,
+              merchant,
+            );
 
-    // 3. Uniform create flow
-    const created = transactionService.create({
-      receiptId: null,
-      extracted,
-      form,
-      source: "csv",
-    });
+            // 2. Category resolution
+            const categoryResolved = resolveCategory(
+              userId,
+              merchant,
+              description,
+              amount,
+            );
 
-    results.push(created);
-  }
+            // 3. Insert transaction
+            db.prepare(
+              `
+              INSERT INTO transactions (user_id, merchant, description, amount, category_id)
+              VALUES (?, ?, ?, ?, ?)
+            `,
+            ).run(
+              userId,
+              merchant,
+              description,
+              amount,
+              categoryResolved.category_id,
+            );
+          }
 
-  console.log("CSV import results:", results);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+  });
 }
 
-export { importCsv };
+// CLI usage
+if (require.main === module) {
+  const file = process.argv[2];
+  if (!file) {
+    console.error("Usage: ts-node import-csv.ts <file.csv>");
+    process.exit(1);
+  }
+
+  importCsv(file)
+    .then(() => console.log("CSV import completed"))
+    .catch((err) => console.error("Import failed:", err));
+}

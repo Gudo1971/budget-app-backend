@@ -1,5 +1,8 @@
 import { Router } from "express";
 import { transactionService } from "../services/transactions/transactions.service";
+import { resolveCategory } from "../services/categories/resolveCategory";
+import { resolveMerchantMemory } from "../services/merchantMemory/service/resolveMerchantMemory";
+import { db } from "../lib/db";
 
 const router = Router();
 console.log("🚀 transactions router loaded");
@@ -14,49 +17,37 @@ router.get("/", (req, res) => {
   res.json(transactions);
 });
 
-// ⭐ POST: Filtered transactions (PeriodSelector v2)
-router.post("/filter", async (req, res) => {
+// ⭐ POST: Create transaction (AUTOMATIC CATEGORY)
+router.post("/", async (req, res) => {
   try {
-    const period = req.body;
+    const { amount, date, merchant, description, userId } = req.body;
 
-    if (!period.userId) {
-      return res.status(400).json({ error: "userId is required" });
-    }
+    // 1. Merchant memory lookup
+    const merchantResolved = await resolveMerchantMemory(userId, merchant);
 
-    const result = await transactionService.filter({
-      userId: String(period.userId),
+    // 2. Category resolution
+    const categoryResolved = resolveCategory(
+      userId,
+      merchant,
+      description,
+      amount,
+    );
 
-      // single
-      year: period.year,
-      month: period.month,
-
-      // single week → convert to array
-      weeks: period.week
-        ? [String(period.week)]
-        : period.weeks
-          ? period.weeks.map(String)
-          : undefined,
-
-      // multi
-      months: period.months,
-      years: period.years,
-
-      // custom
-      from: period.from,
-      to: period.to,
+    // 3. Create transaction with resolved category
+    const result = await transactionService.create({
+      amount,
+      date,
+      merchant,
+      description,
+      category_id: categoryResolved.category_id,
+      userId,
     });
 
     res.json(result);
   } catch (err) {
-    console.error("❌ POST /filter error:", err);
+    console.error("❌ POST / error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
-});
-
-// ⭐ POST: Create transaction
-router.post("/", async (req, res) => {
-  const result = await transactionService.create(req.body);
-  res.json(result);
 });
 
 // ⭐ POST: from extracted receipt
@@ -69,6 +60,30 @@ router.post("/from-extracted", async (req, res) => {
   });
 
   res.json(result);
+});
+
+router.patch("/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category_id } = req.body;
+
+    if (!category_id) {
+      return res.status(400).json({ error: "Missing category_id" });
+    }
+
+    db.prepare(
+      `
+      UPDATE transactions
+      SET category_id = ?
+      WHERE id = ?
+    `,
+    ).run(category_id, id);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error updating transaction:", error);
+    res.status(500).json({ error: "Failed to update transaction" });
+  }
 });
 
 export default router;

@@ -2,6 +2,18 @@ import { db } from "../lib/db";
 
 export function initDatabase() {
   db.exec(`
+
+
+    DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS subcategories;
+DROP TABLE IF EXISTS receipts;
+DROP TABLE IF EXISTS transactions;
+DROP TABLE IF EXISTS budgets;
+DROP TABLE IF EXISTS budget_categories;
+DROP TABLE IF EXISTS fixed_costs;
+DROP TABLE IF EXISTS merchant_memory;
+DROP TABLE IF EXISTS savings_goals;
+
     -- ============================
     -- CATEGORIES
     -- ============================

@@ -1,14 +1,44 @@
 import { parseCsv } from "../../scripts/csv.parser";
 import { transactionService } from "../transactions/transactions.service";
+import {
+  getCategoryForMerchant,
+  upsertMerchantMemory,
+} from "../merchantMemory/service/merchantMemory.service";
+import { normalizeMerchant } from "@shared/services/normalizeMerchant";
+import { resolveCategory } from "../categories/resolveCategory";
 
 export const csvImportService = {
   async import(buffer: Buffer) {
-    // 1. Parse CSV from buffer
     const rows = await parseCsv(buffer);
-
     const results = [];
 
     for (const row of rows) {
+      const userId = "1";
+
+      const normalized = normalizeMerchant(row.merchant).key;
+
+      // 1) Check merchant memory
+      const memory = getCategoryForMerchant(userId, normalized);
+
+      let categoryId: number | null = null;
+
+      if (memory) {
+        categoryId = memory.category_id;
+      } else {
+        // ⭐ FIXED: resolveCategory correct aangeroepen
+        const resolved = resolveCategory(
+          userId,
+          normalized,
+          row.description ?? row.merchant,
+          row.amount,
+        );
+
+        categoryId = resolved.category_id;
+
+        // 4) Memory leren
+        upsertMerchantMemory(userId, normalized, categoryId);
+      }
+
       const extracted = {
         total: row.amount,
         date: row.date,
@@ -21,10 +51,9 @@ export const csvImportService = {
         date: row.date,
         merchant: row.merchant,
         description: row.description ?? row.merchant,
-        category_id: null,
+        category_id: categoryId,
       };
 
-      // ⭐ FIX: wacht op database opslag
       const created = await transactionService.create({
         receiptId: null,
         extracted,

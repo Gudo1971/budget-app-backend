@@ -3,9 +3,8 @@ import fs from "fs";
 import path from "path";
 import { db } from "../../lib/db";
 import { extractReceiptFromImage } from "../../ai/extractors/extractReceiptFromImage";
-
+import { resolveCategory } from "../../services/categories/resolveCategory";
 import { normalizeMerchant } from "@shared/services/normalizeMerchant";
-import { categorizeMerchant } from "../../services/merchantMemory/service/categorizeMerchant.service";
 
 const router = Router();
 const USER_ID = "demo-user";
@@ -58,33 +57,38 @@ router.post("/:id/extract", async (req, res) => {
     const rawMerchant = parsedJson.merchant ?? "";
     const normMerchant = normalizeMerchant(rawMerchant);
 
-    // 6. ⭐ AI categorization for SUGGESTION only (not saved in transaction)
-    const categorization = await categorizeMerchant(
+    // 6. Beschrijving + bedrag bepalen
+    const description = normMerchant.display;
+
+    const amount = parsedJson.total ?? 0;
+
+    // 7. Categorisatie via resolveCategory (SUGGESTIE)
+    const category = resolveCategory(
       USER_ID,
       normMerchant.key,
-      normMerchant.display,
+      description,
+      amount,
     );
 
-    // 7. Update parsedJson voor opslag + frontend
+    // 8. parsedJson verrijken voor opslag + frontend
     parsedJson.merchant = normMerchant.display;
-    parsedJson.merchant_category = categorization.category_id; // ⭐ For suggestion only
-    parsedJson.category = null; // User will set this
-
+    parsedJson.merchant_category = category.category_id; // suggestie
+    parsedJson.category = null; // user kiest zelf
     parsedJson.subcategory = null;
 
-    // 8. Opslaan in DB
+    // 9. Opslaan in DB
     db.prepare(
       `
-    UPDATE receipts
-    SET
-      merchant = ?,
-      purchase_date = ?,
-      total = ?,
-      ocrText = ?,
-      aiResult = ?,
-      status = 'processed'
-    WHERE id = ?
-  `,
+      UPDATE receipts
+      SET
+        merchant = ?,
+        purchase_date = ?,
+        total = ?,
+        ocrText = ?,
+        aiResult = ?,
+        status = 'processed'
+      WHERE id = ?
+    `,
     ).run(
       normMerchant.key,
       parsedJson.date ?? null,
@@ -94,11 +98,11 @@ router.post("/:id/extract", async (req, res) => {
       receipt.id,
     );
 
-    // 9. Normalized block voor matching v2
+    // 10. Normalized block voor matching v2
     const normalized = {
       amount: parsedJson.total ?? null,
       date: parsedJson.date ?? null,
-      merchant: normMerchant.key, // FIXED
+      merchant: normMerchant.key,
     };
 
     res.json({

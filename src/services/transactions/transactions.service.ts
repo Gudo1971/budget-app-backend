@@ -1,11 +1,13 @@
 import { db } from "../../lib/db";
 import { normalizeDate } from "./transaction.utils";
 import { normalizeMerchant } from "@shared/services/normalizeMerchant";
-import { categorizeMerchant } from "../merchantMemory/service/categorizeMerchant.service";
-import { upsertMerchantMemory } from "../merchantMemory/service/merchantMemory.service";
+import { resolveCategory } from "../categories/resolveCategory";
+import {
+  upsertMerchantMemory,
+  getCategoryForMerchant,
+} from "../merchantMemory/service/merchantMemory.service";
 import { transactionRepository } from "../../repositories/transactions.repository";
 
-// ⭐ Uniforme mapping voor alle transacties
 function mapTransaction(row: any) {
   const normalized = normalizeMerchant(row.merchant);
 
@@ -33,7 +35,6 @@ function mapTransaction(row: any) {
 }
 
 export const transactionService = {
-  // ⭐ GET ALL TRANSACTIONS
   getAll() {
     const rows = db
       .prepare(
@@ -65,20 +66,23 @@ ORDER BY t.transaction_date DESC
     };
   },
 
-  // ⭐ CREATE FLOW
+  // ⭐ CREATE FLOW (NIEUW)
   async create(body: any) {
     console.log(">>> CREATE CALLED WITH:", body);
 
     let amount, date, merchant, description, receiptId, userId;
 
+    // CSV / manual input
     if (body.amount !== undefined && body.merchant !== undefined) {
       ({ amount, date, merchant, description, receiptId, userId } = body);
-    } else if (body.form && body.extracted) {
+    }
+    // Extracted receipt
+    else if (body.form && body.extracted) {
       const { form, extracted, receiptId: rid } = body;
       amount = form.amount || extracted.total;
       date = form.date || extracted.date;
       merchant = form.merchant || extracted.merchant;
-      description = form.description;
+      description = form.description || extracted.description;
       receiptId = rid ?? null;
       userId = body.userId || "demo-user";
     } else {
@@ -98,9 +102,55 @@ ORDER BY t.transaction_date DESC
     }
 
     const normalizedDate = normalizeDate(date ?? new Date().toISOString());
-    const normalizedAmount = parseFloat(String(amount));
     const normMerchant = normalizeMerchant(merchant);
 
+    const rawAmount = parseFloat(String(amount));
+    const absAmount = Math.abs(rawAmount);
+
+    const desc = (description || "").toLowerCase();
+
+    // ⭐ GKB-detectie
+    const isGKB =
+      normMerchant.key.includes("gkb") ||
+      normMerchant.key.includes("bewind") ||
+      normMerchant.key.includes("beheer") ||
+      normMerchant.key.includes("reservering");
+
+    // ⭐ Interne verschuivingen → negeren
+    const isInternal =
+      isGKB &&
+      (desc.includes("weekgeld") ||
+        desc.includes("leefgeld") ||
+        desc.includes("reservering") ||
+        desc.includes("vrij opneembaar") ||
+        desc.includes("interne") ||
+        desc.includes("overboeking"));
+
+    if (isInternal) {
+      return {
+        success: true,
+        data: {
+          ignored: true,
+          reason: "internal_transfer",
+        },
+        error: null,
+      };
+    }
+
+    // ⭐ Inkomsten vs uitgaven
+    const isIncome =
+      desc.includes("uitkering") ||
+      desc.includes("toeslag") ||
+      desc.includes("loon") ||
+      desc.includes("salaris") ||
+      desc.includes("kindgebonden") ||
+      desc.includes("kinderbijslag") ||
+      desc.includes("budget") ||
+      desc.includes("kgb");
+
+    const normalizedAmount = isIncome ? absAmount : -absAmount;
+
+    // ⭐ Duplicate check
     const existing = db
       .prepare(
         `
@@ -135,22 +185,36 @@ ORDER BY t.transaction_date DESC
         error: null,
       };
     }
+    // ⭐ CATEGORISATIE ENGINE
+    let categoryId = body.category_id ?? null;
 
-    let categoryId;
-
-    if (body.category_id) {
-      categoryId = body.category_id;
-    } else if (body.form?.category?.category_id) {
-      categoryId = body.form.category.category_id;
-    } else {
-      const categoryResult = await categorizeMerchant(
+    // 1) Als CSV of manual input een category_id geeft → gebruik die
+    if (!categoryId) {
+      // 2) Merchant memory check
+      const memory = getCategoryForMerchant(
         userId || "demo-user",
         normMerchant.key,
-        normMerchant.display,
       );
-      categoryId = categoryResult.category_id;
+
+      if (memory) {
+        categoryId = memory.category_id;
+      } else {
+        // 3) Fallback naar resolveCategory
+        const categoryResult = resolveCategory(
+          userId || "demo-user",
+          normMerchant.key,
+          description ?? normMerchant.display,
+          normalizedAmount,
+        );
+
+        categoryId = categoryResult.category_id;
+      }
     }
 
+    // 4) Merchant memory leren
+    upsertMerchantMemory(userId || "demo-user", normMerchant.key, categoryId);
+
+    // ⭐ Insert
     const stmt = db.prepare(`
       INSERT INTO transactions (
         receipt_id,
@@ -178,10 +242,15 @@ ORDER BY t.transaction_date DESC
       0,
     );
 
+    // ⭐ Merchant memory bijwerken
     if (categoryId) {
       upsertMerchantMemory(userId || "demo-user", normMerchant.key, categoryId);
     }
-
+    console.log(">>> MERCHANT MEMORY UPSERT:", {
+      user: userId || "demo-user",
+      merchant: normMerchant.key,
+      categoryId,
+    });
     db.pragma("wal_checkpoint(TRUNCATE)");
 
     return {
@@ -199,33 +268,13 @@ ORDER BY t.transaction_date DESC
         receipt: null,
         userId: userId || "demo-user",
         duplicate: false,
-        matched: false,
+        matched: true,
       },
       error: null,
     };
   },
 
-  // ⭐ FILTER FLOW
-  async filter(params: {
-    userId: string;
-
-    // single
-    year?: number;
-    month?: number;
-    week?: number;
-
-    // multi
-    years?: number[];
-    months?: number[];
-    weeks?: number[];
-
-    // custom
-    from?: string;
-    to?: string;
-
-    // legacy
-    dates?: string[];
-  }) {
+  async filter(params: any) {
     return transactionRepository.filter(params);
   },
 };

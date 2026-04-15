@@ -5,19 +5,43 @@ import { z } from "zod";
 const TransactionsSchema = z.array(TransactionSchema);
 
 export async function extractTransactionsFromPdfText(pdfText: string) {
+  // ⭐ Detecteer GKB-document
+  const isGkbPdf =
+    pdfText.includes("BBR:") ||
+    pdfText.toLowerCase().includes("reserveringnr") ||
+    pdfText.toLowerCase().includes("vrij opneembaar") ||
+    pdfText.toLowerCase().includes("leefgeld") ||
+    pdfText.toLowerCase().includes("2-wekengeld") ||
+    pdfText.toLowerCase().includes("gkb");
+
+  const gkbRules = `
+REGELS VOOR GKB-PDF’s:
+- Positieve bedragen zijn NIET automatisch inkomsten.
+- Veel GKB-transacties zijn interne potjesboekingen (reserveringen).
+- Potjesboekingen zijn ALTIJD "expense", ook als het bedrag positief is.
+- Herken potjesboekingen aan woorden zoals:
+  "BBR:", "reserveringnr", "saldo reservering", "vrij opneembaar",
+  "2-wekengeld", "leefgeld", "restant", "reservering", "GKB".
+
+REGELS VOOR ECHTE INKOMSTEN:
+- Alleen markeren als "income" als de omschrijving wijst op echte inkomsten:
+  "weekgeld", "leefgeld", "bijstand", "uitkering", "loon", 
+  "huurtoeslag", "zorgtoeslag", "toeslag", "inkomen".
+
+REGELS VOOR BEDRAGEN:
+- Gebruik het bedrag zoals het in de PDF staat.
+- Het teken van het bedrag bepaalt NIET het type.
+- Het type wordt bepaald door de omschrijving.
+`;
+
   const prompt = `
 Je bent een gespecialiseerd AI-model voor het extraheren van banktransacties uit PDF-tekst.
 
 BELANGRIJK:
 - Geef ALLEEN een geldige JSON-ARRAY terug.
-- GEEN object.
-- GEEN wrapper zoals {"transactions": [...] }.
-- GEEN tekst buiten de JSON.
-- GEEN uitleg.
-- GEEN commentaar.
-- De output MOET beginnen met '[' en eindigen met ']'.
+- GEEN object, GEEN wrapper, GEEN tekst buiten JSON.
 
-Elke transactie in de array moet exact deze velden bevatten:
+Elke transactie moet deze velden bevatten:
 {
   "date": "dd-mm-jjjj",
   "description": "volledige omschrijving",
@@ -27,10 +51,7 @@ Elke transactie in de array moet exact deze velden bevatten:
   "confidence": number
 }
 
-Regels:
-- Combineer multi-line omschrijvingen tot één transactie.
-- Negeer tekst die geen transactie is.
-- Als de tekst geen transacties bevat, geef een lege array terug: [].
+${isGkbPdf ? gkbRules : ""}
 
 Tekst:
 ${pdfText}

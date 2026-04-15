@@ -40,9 +40,9 @@ router.post("/", (req, res) => {
     }
 
     const stmt = db.prepare(`
-      INSERT INTO categories (user_id, name, type)
-      VALUES (?, ?, 'custom')
-    `);
+  INSERT INTO categories (user_id, name, type)
+  VALUES (?, ?, 'variable')
+`);
 
     const result = stmt.run(userId, name.trim());
 

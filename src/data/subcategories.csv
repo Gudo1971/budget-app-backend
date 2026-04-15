@@ -1,10 +1,39 @@
 category_id,name,user_id
+1,Supermarkt,demo-user
 1,Groente & Fruit,demo-user
 1,Dranken,demo-user
 1,Snacks,demo-user
 2,Restaurants,demo-user
 2,Cafés,demo-user
+2,Fastfood,demo-user
+3,Drogist,demo-user
 3,Haarverzorging,demo-user
 3,Huidverzorging,demo-user
+4,Brandstof,demo-user
+4,Parkeren,demo-user
 4,Trein,demo-user
 4,Bus,demo-user
+4,Wegenbelasting,demo-user
+4,Verzekering,demo-user
+5,Medicijnen,demo-user
+5,Apotheek,demo-user
+6,Streaming,demo-user
+6,Muziek,demo-user
+6,Gaming,demo-user
+7,Huur,demo-user
+7,Energie,demo-user
+7,Water,demo-user
+8,Warenhuis,demo-user
+8,Kleding,demo-user
+8,Cadeaus,demo-user
+9,School,demo-user
+9,Sportkleding,demo-user
+9,Oppas & BSO,demo-user
+9,Schoolspullen,demo-user
+10,Internet & TV,demo-user
+10,Mobiel,demo-user
+11,Cultuur,demo-user
+11,Entertainment,demo-user
+12,Salaris,demo-user
+12,Toeslagen,demo-user
+13,Onbekend,demo-user
