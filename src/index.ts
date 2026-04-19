@@ -81,6 +81,10 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 // ⭐ API ROUTES
+
+// ⭐ Serve uploaded receipt images
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
 app.use("/api/transactions", transactionsRouter);
 app.use("/api/categories", categoriesRouter);
 app.use("/api/budgets", budgetRouter);

@@ -23,6 +23,10 @@ export default async function smartUploadReceipt(req: Request, res: Response) {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
+    const transactionId = req.body.transactionId
+      ? Number(req.body.transactionId)
+      : null;
+
     // 1. HASH BEREKENEN
     const fileBuffer = fs.readFileSync(file.path);
     const imageHash = crypto
@@ -30,6 +34,51 @@ export default async function smartUploadReceipt(req: Request, res: Response) {
       .update(fileBuffer)
       .digest("hex");
 
+    // ⭐ BRANCH 1 — BON KOPPELEN AAN BESTAANDE TRANSACTIE
+    if (transactionId) {
+      console.log(
+        ">>> Upload gekoppeld aan bestaande transactie:",
+        transactionId,
+      );
+
+      // 1. Receipt opslaan
+      const insert = db.prepare(
+        `
+        INSERT INTO receipts 
+        (filename, original_name, user_id, status, imageHash, transaction_id)
+        VALUES (?, ?, ?, 'processed', ?, ?)
+        `,
+      );
+
+      const result = insert.run(
+        `${USER_ID}/${file.filename}`,
+        file.originalname,
+        USER_ID,
+        imageHash,
+        transactionId,
+      );
+
+      const receiptId = result.lastInsertRowid as number;
+
+      // 2. Transactie updaten met receipt_id
+      db.prepare(
+        `
+        UPDATE transactions
+        SET receipt_id = ?
+        WHERE id = ? AND user_id = ?
+        `,
+      ).run(receiptId, transactionId, USER_ID);
+
+      return res.json({
+        action: "linked",
+        receiptId,
+        transactionId,
+        url: `http://localhost:3001/uploads/${USER_ID}/${file.filename}`,
+        summary: "Bon gekoppeld aan bestaande transactie",
+      });
+    }
+
+    // ⭐ BRANCH 2 — NORMALE SMART UPLOAD FLOW
     // 2. DUPLICATE CHECK
     const duplicate = db
       .prepare(
@@ -57,13 +106,6 @@ export default async function smartUploadReceipt(req: Request, res: Response) {
     }
 
     // 3. NIEUWE RECEIPT OPSLAAN
-    console.log("INSERT PARAMS:", {
-      filename: file.filename,
-      originalname: file.originalname,
-      user: USER_ID,
-      hash: imageHash,
-    });
-
     const insert = db.prepare(
       `
       INSERT INTO receipts 
@@ -73,7 +115,7 @@ export default async function smartUploadReceipt(req: Request, res: Response) {
     );
 
     const result = insert.run(
-      file.filename,
+      `${USER_ID}/${file.filename}`,
       file.originalname,
       USER_ID,
       imageHash,
@@ -85,6 +127,7 @@ export default async function smartUploadReceipt(req: Request, res: Response) {
     return res.json({
       action: "uploaded",
       receiptId,
+      url: `http://localhost:3001/uploads/${USER_ID}/${file.filename}`,
       summary: "Bon geüpload en klaar voor analyse",
     });
   } catch (err) {

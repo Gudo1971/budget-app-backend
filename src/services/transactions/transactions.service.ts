@@ -23,7 +23,7 @@ function mapTransaction(row: any) {
     recurring: row.recurring === 1,
     receipt: row.receipt_id
       ? {
-          url: `/uploads/${row.receipt_filename}`,
+          url: `http://localhost:3001/uploads/${row.receipt_filename}`,
           thumbnail: null,
           aiResult: row.receipt_ai_result
             ? JSON.parse(row.receipt_ai_result)

@@ -12,14 +12,14 @@ import { importFixedCostsCsv } from "./import-fixed-costs";
 import { importSavingsGoalsCsv } from "./import-savings-goals";
 import { importTransactionsCsv } from "./import-transactions";
 import { importMerchantMemoryCsv } from "./import-merchant-memory";
-
 import { importSubcategoriesCsv } from "./import-subcategories";
-import e from "express";
 
 async function importAllCsvs() {
   const dataDir = path.join(__dirname, "..", "data");
 
-  // ⭐ DROP ALL TABLES FIRST (nuclear option for clean reset)
+  // ⭐ FOREIGN KEYS UIT vóór droppen
+  db.pragma("foreign_keys = OFF");
+
   console.log("💣 Dropping all tables...");
   try {
     db.exec(`
@@ -39,7 +39,6 @@ async function importAllCsvs() {
     console.log("⚠️ Drop failed:", error instanceof Error ? error.message : "");
   }
 
-  // ⭐ INITIALIZE DATABASE SCHEMA
   console.log("🔨 Building schema...");
   try {
     initDatabase();
@@ -52,10 +51,11 @@ async function importAllCsvs() {
     throw error;
   }
 
-  // ⭐ DATABASE CLEANUP (niet nodig - we gingen net DROP TABLE doen)
-  console.log("✅ Database reset complete");
+  // ⭐ FOREIGN KEYS WEER AAN NA schema build
+  db.pragma("foreign_keys = ON");
 
-  // Define import order to handle dependencies
+  console.log("Starting CSV import...");
+
   const importOrder = [
     "categories.csv",
     "subcategories.csv",
@@ -66,8 +66,6 @@ async function importAllCsvs() {
     "merchant_memory.csv",
     "transactions.csv",
   ];
-
-  console.log("Starting CSV import...");
 
   for (const file of importOrder) {
     const filePath = path.join(dataDir, file);
