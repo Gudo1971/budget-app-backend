@@ -85,5 +85,27 @@ router.patch("/:id", (req, res) => {
     res.status(500).json({ error: "Failed to update transaction" });
   }
 });
+// ⭐ GET: Total income for a given month (YYYY-MM)
+router.get("/income/:month", (req, res) => {
+  try {
+    const { month } = req.params;
+
+    const row = db
+      .prepare(
+        `
+        SELECT SUM(amount) as total
+        FROM transactions
+        WHERE amount > 0
+        AND transaction_date LIKE ?
+      `,
+      )
+      .get(`${month}%`) as { total: number | null };
+
+    res.json(row.total || 0);
+  } catch (error) {
+    console.error("Error fetching income:", error);
+    res.status(500).json({ error: "Failed to fetch income" });
+  }
+});
 
 export default router;

@@ -9,7 +9,7 @@ import { requestLogger } from "./middleware/requestLogger";
 // ROUTES
 import transactionsRouter from "./routes/transactions";
 import categoriesRouter from "./routes/categories";
-import budgetRouter from "./routes/budgets";
+import budgetRouter from "./routes/budget";
 import fixedCostsRouter from "./routes/fixed-costs";
 import savingsGoalsRouter from "./routes/savings-goals";
 import budgetCategoriesRouter from "./routes/budget-categories";
@@ -19,11 +19,15 @@ import itemRoutes from "./routes/items";
 import merchantCategoryRoute from "./routes/merchant-categories";
 import { aiPdfExtractRouter } from "./routes/ai/aiPdfextract";
 import smartUploadReceipt from "./routes/receipts/upload";
+import monthRouter from "./routes/month";
 
 import archiveRoutes from "./routes/receipts/archive";
 import { debugRouter } from "./routes/debug.routes";
 import fetch from "node-fetch";
 import summaryRouter from "./routes/summary";
+
+import { subBudgetRouter } from "./routes/subBudgetRouter";
+
 // ⭐ Helper: run daily at specific time
 function runAt(hour: number, minute: number, callback: () => void) {
   const now = new Date();
@@ -87,10 +91,11 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.use("/api/transactions", transactionsRouter);
 app.use("/api/categories", categoriesRouter);
-app.use("/api/budgets", budgetRouter);
+app.use("/api/budget", budgetRouter);
 app.use("/api/fixed-costs", fixedCostsRouter);
 app.use("/api/savings-goals", savingsGoalsRouter);
 app.use("/api/budget-categories", budgetCategoriesRouter);
+app.use("/api/sub-budgets", subBudgetRouter);
 app.use("/api/split-transactions", splitTransactionsRouter);
 app.use("/api/receipts", receiptsRouter);
 app.use("/api/items", itemRoutes);
@@ -99,7 +104,7 @@ app.use("/api/receipts", archiveRoutes);
 app.use("/debug", debugRouter);
 app.post("/api/receipts/upload", smartUploadReceipt);
 app.use("/api/summary", summaryRouter);
-
+app.use("/api/month", monthRouter);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;

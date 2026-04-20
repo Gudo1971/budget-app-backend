@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS budget_categories;
 DROP TABLE IF EXISTS fixed_costs;
 DROP TABLE IF EXISTS merchant_memory;
 DROP TABLE IF EXISTS savings_goals;
+DROP TABLE IF EXISTS sub_budgets;
 
     -- ============================
     -- CATEGORIES
@@ -73,26 +74,40 @@ DROP TABLE IF EXISTS savings_goals;
       FOREIGN KEY (category_id) REFERENCES categories(id),
       FOREIGN KEY (subcategory_id) REFERENCES subcategories(id)
     );
-
     -- ============================
     -- BUDGETS
     -- ============================
-    CREATE TABLE IF NOT EXISTS budgets (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      month TEXT NOT NULL,
-      total_budget REAL NOT NULL
-    );
+   CREATE TABLE IF NOT EXISTS budgets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  month TEXT NOT NULL UNIQUE,
+  total_budget REAL NOT NULL
+);
+    -- ============================
+    -- SUB_BUDGETS
+    -- ============================
+CREATE TABLE sub_budgets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  month TEXT NOT NULL,               -- "2025-04"
+  category_id INTEGER NOT NULL,
+  amount REAL NOT NULL DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (category_id) REFERENCES categories(id)
+);
+
+    
 
     -- ============================
     -- BUDGET CATEGORIES
     -- ============================
-    CREATE TABLE IF NOT EXISTS budget_categories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      month TEXT NOT NULL,
-      category_id INTEGER NOT NULL,
-      budget_amount REAL NOT NULL,
-      FOREIGN KEY (category_id) REFERENCES categories(id)
-    );
+  CREATE TABLE IF NOT EXISTS budget_categories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  month TEXT NOT NULL,
+  category_id INTEGER NOT NULL,
+  budget_amount REAL NOT NULL,
+  UNIQUE(month, category_id),
+  FOREIGN KEY (category_id) REFERENCES categories(id)
+);
 
     -- ============================
     -- FIXED COSTS
