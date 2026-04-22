@@ -11,7 +11,7 @@ subBudgetRouter.get("/:month", (req, res) => {
   const { month } = req.params;
 
   const stmt = db.prepare(`
-    SELECT sb.*, c.name AS category_name, c.type AS category_type
+    SELECT sb.*, c.name AS category_name, c.type AS category_type, c.color AS category_color
     FROM sub_budgets sb
     JOIN categories c ON c.id = sb.category_id
     WHERE sb.month = ?

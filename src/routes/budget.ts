@@ -4,25 +4,71 @@ import { db } from "../lib/db";
 const router = Router();
 
 // GET budget voor maand
+// GET budget voor maand
+// GET budget voor maand
 router.get("/:month", (req, res) => {
   const { month } = req.params;
 
   const row = db
     .prepare(
       `
-    SELECT id, month, total_budget
-    FROM budgets
-    WHERE month = ?
-  `,
+      SELECT id, month, total_budget
+      FROM budgets
+      WHERE month = ?
+    `,
     )
-    .get(month);
+    .get(month) as
+    | { id: number; month: string; total_budget: number }
+    | undefined;
 
-  if (!row) return res.status(404).json(null);
+  if (!row) {
+    return res.json({
+      id: null,
+      month,
+      total_budget: 0,
+      subBudgets: [],
+    });
+  }
 
-  res.json(row);
+  // ⭐ Type voor JOIN-resultaat
+  interface SubBudgetRow {
+    id: number;
+    category_id: number;
+    amount: number;
+    category_name: string;
+    category_color: string;
+  }
+
+  // ⭐ Subbudgetten + category ophalen
+  const subBudgets = db
+    .prepare(
+      `
+      SELECT 
+        sb.id,
+        sb.category_id,
+        sb.amount,
+        c.name AS category_name,
+        c.color AS category_color
+      FROM sub_budgets sb
+      JOIN categories c ON c.id = sb.category_id
+      WHERE sb.month = ?
+    `,
+    )
+    .all(month) as SubBudgetRow[];
+
+  const mapped = subBudgets.map((row) => ({
+    id: row.id,
+    category_id: row.category_id,
+    amount: row.amount,
+    category_name: row.category_name,
+    category_color: row.category_color,
+  }));
+
+  res.json({
+    ...row,
+    subBudgets: mapped,
+  });
 });
-
-// POST nieuw budget
 router.post("/", (req, res) => {
   const { month, total_budget } = req.body;
 
@@ -51,22 +97,28 @@ router.put("/:month", (req, res) => {
   const { month } = req.params;
   const { total_budget } = req.body;
 
-  db.prepare(
-    `
-    UPDATE budgets
-    SET total_budget = ?
-    WHERE month = ?
-  `,
-  ).run(total_budget, month);
+  // Check of budget bestaat
+  const existing = db
+    .prepare(`SELECT id FROM budgets WHERE month = ?`)
+    .get(month);
 
+  if (existing) {
+    // UPDATE
+    db.prepare(`UPDATE budgets SET total_budget = ? WHERE month = ?`).run(
+      total_budget,
+      month,
+    );
+  } else {
+    // INSERT
+    db.prepare(`INSERT INTO budgets (month, total_budget) VALUES (?, ?)`).run(
+      month,
+      total_budget,
+    );
+  }
+
+  // Return updated/created budget
   const updated = db
-    .prepare(
-      `
-    SELECT id, month, total_budget
-    FROM budgets
-    WHERE month = ?
-  `,
-    )
+    .prepare(`SELECT id, month, total_budget FROM budgets WHERE month = ?`)
     .get(month);
 
   res.json(updated);

@@ -1,14 +1,14 @@
-name,type
-Boodschappen,variable
-Horeca,variable
-Persoonlijke verzorging,variable
-Vervoer,variable
-Gezondheid,fixed
-Abonnementen,fixed
-Woonkosten,fixed
-Shopping,variable
-Kinderen,variable
-Telecom,fixed
-Uitjes,variable
-Inkomen,fixed
-Overig,variable
+id,user_id,name,type
+1,demo-user,Boodschappen,variable
+2,demo-user,Horeca,variable
+3,demo-user,Persoonlijke verzorging,variable
+4,demo-user,Vervoer,variable
+5,demo-user,Gezondheid,fixed
+6,demo-user,Abonnementen,fixed
+7,demo-user,Woonkosten,fixed
+8,demo-user,Shopping,variable
+9,demo-user,Kinderen,variable
+10,demo-user,Telecom,fixed
+11,demo-user,Uitjes,variable
+12,demo-user,Inkomen,fixed
+13,demo-user,Overig,variable

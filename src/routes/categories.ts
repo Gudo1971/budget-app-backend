@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "../lib/db";
+import { generateColor } from "../utils/generateColor";
 
 const router = Router();
 
@@ -15,7 +16,7 @@ router.get("/", (req, res) => {
     const categories = db
       .prepare(
         `
-        SELECT id, name
+        SELECT id, name, color
         FROM categories
         WHERE user_id = ?
         ORDER BY name ASC
@@ -39,17 +40,20 @@ router.post("/", (req, res) => {
       return res.status(400).json({ error: "Missing userId or name" });
     }
 
-    const stmt = db.prepare(`
-  INSERT INTO categories (user_id, name, type)
-  VALUES (?, ?, 'variable')
-`);
+    const color = generateColor(); // ⭐ kleur voor nieuwe categorie
 
-    const result = stmt.run(userId, name.trim());
+    const stmt = db.prepare(`
+      INSERT INTO categories (user_id, name, type, color)
+      VALUES (?, ?, 'variable', ?)
+    `);
+
+    const result = stmt.run(userId, name.trim(), color);
 
     res.json({
       id: result.lastInsertRowid,
       name: name.trim(),
       type: "custom",
+      color,
     });
   } catch (error) {
     console.error("Error creating category:", error);

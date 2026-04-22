@@ -22,7 +22,8 @@ DROP TABLE IF EXISTS sub_budgets;
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       type TEXT NOT NULL CHECK(type IN ('variable', 'fixed')),
-      user_id TEXT DEFAULT 'demo-user'
+      user_id TEXT DEFAULT 'demo-user',
+     color TEXT
     );
 
     -- ============================
