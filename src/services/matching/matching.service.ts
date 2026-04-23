@@ -9,7 +9,7 @@ import {
   MatchDuplicate,
   MatchAiResult,
   MatchCandidate,
-} from "../../../../shared/types/matching";
+} from "@shared/types/matching";
 
 export const matchingService = {
   findMatch(input: MatchInput, userId: string): MatchResult {

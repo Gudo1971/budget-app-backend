@@ -4,7 +4,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
 
-    "rootDir": "..",
+    "rootDir": "src",
     "outDir": "dist",
 
     "strict": true,
@@ -12,11 +12,11 @@
     "skipLibCheck": true,
     "ignoreDeprecations": "6.0",
 
-    "baseUrl": ".",
     "paths": {
-      "@shared/*": ["../shared/*"]
+      "@shared/*": ["../frontend/src/shared/*"]
     }
   },
 
-  "include": ["src", "../shared"]
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
 }

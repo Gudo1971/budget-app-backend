@@ -3,9 +3,96 @@ import { db } from "../lib/db";
 
 const router = Router();
 
-// GET budget voor maand
-// GET budget voor maand
-// GET budget voor maand
+/* -------------------------------------------
+   GET ALL BUDGETS
+------------------------------------------- */
+router.get("/", (req, res) => {
+  const rows = db
+    .prepare(
+      `
+      SELECT id, month, total_budget
+      FROM budgets
+      ORDER BY month DESC
+    `,
+    )
+    .all() as { id: number; month: string; total_budget: number }[];
+
+  const budgets = rows.map((row) => {
+    const subBudgets = db
+      .prepare(
+        `
+        SELECT 
+          sb.id,
+          sb.category_id,
+          sb.amount,
+          c.name AS category_name,
+          c.color AS category_color
+        FROM sub_budgets sb
+        JOIN categories c ON c.id = sb.category_id
+        WHERE sb.month = ?
+      `,
+      )
+      .all(row.month);
+
+    return {
+      ...row,
+      subBudgets,
+    };
+  });
+
+  res.json(budgets);
+});
+
+/* -------------------------------------------
+   GET BUDGET BY ID
+------------------------------------------- */
+router.get("/by-id/:id", (req, res) => {
+  const { id } = req.params;
+
+  const row = db
+    .prepare(
+      `
+      SELECT id, month, total_budget
+      FROM budgets
+      WHERE id = ?
+    `,
+    )
+    .get(id) as { id: number; month: string; total_budget: number } | undefined;
+
+  if (!row) {
+    return res.json({
+      id: null,
+      month: null,
+      total_budget: 0,
+      subBudgets: [],
+    });
+  }
+
+  const subBudgets = db
+    .prepare(
+      `
+      SELECT 
+        sb.id,
+        sb.category_id,
+        sb.amount,
+        c.name AS category_name,
+        c.color AS category_color
+      FROM sub_budgets sb
+      JOIN categories c ON c.id = sb.category_id
+      WHERE sb.month = ?
+    `,
+    )
+    .all(row.month);
+
+  res.json({
+    ...row,
+    subBudgets,
+  });
+});
+
+/* -------------------------------------------
+   GET BUDGET BY MONTH
+------------------------------------------- */
 router.get("/:month", (req, res) => {
   const { month } = req.params;
 
@@ -30,16 +117,6 @@ router.get("/:month", (req, res) => {
     });
   }
 
-  // ⭐ Type voor JOIN-resultaat
-  interface SubBudgetRow {
-    id: number;
-    category_id: number;
-    amount: number;
-    category_name: string;
-    category_color: string;
-  }
-
-  // ⭐ Subbudgetten + category ophalen
   const subBudgets = db
     .prepare(
       `
@@ -54,21 +131,17 @@ router.get("/:month", (req, res) => {
       WHERE sb.month = ?
     `,
     )
-    .all(month) as SubBudgetRow[];
-
-  const mapped = subBudgets.map((row) => ({
-    id: row.id,
-    category_id: row.category_id,
-    amount: row.amount,
-    category_name: row.category_name,
-    category_color: row.category_color,
-  }));
+    .all(month);
 
   res.json({
     ...row,
-    subBudgets: mapped,
+    subBudgets,
   });
 });
+
+/* -------------------------------------------
+   CREATE BUDGET
+------------------------------------------- */
 router.post("/", (req, res) => {
   const { month, total_budget } = req.body;
 
@@ -92,31 +165,29 @@ router.post("/", (req, res) => {
   res.json(created);
 });
 
-// PUT update budget
+/* -------------------------------------------
+   UPDATE BUDGET
+------------------------------------------- */
 router.put("/:month", (req, res) => {
   const { month } = req.params;
   const { total_budget } = req.body;
 
-  // Check of budget bestaat
   const existing = db
     .prepare(`SELECT id FROM budgets WHERE month = ?`)
     .get(month);
 
   if (existing) {
-    // UPDATE
     db.prepare(`UPDATE budgets SET total_budget = ? WHERE month = ?`).run(
       total_budget,
       month,
     );
   } else {
-    // INSERT
     db.prepare(`INSERT INTO budgets (month, total_budget) VALUES (?, ?)`).run(
       month,
       total_budget,
     );
   }
 
-  // Return updated/created budget
   const updated = db
     .prepare(`SELECT id, month, total_budget FROM budgets WHERE month = ?`)
     .get(month);
@@ -124,8 +195,9 @@ router.put("/:month", (req, res) => {
   res.json(updated);
 });
 
-// COPY budget van vorige maand
-// COPY budget van vorige maand
+/* -------------------------------------------
+   COPY BUDGET
+------------------------------------------- */
 router.post("/copy/:from/:to", (req, res) => {
   const { from, to } = req.params;
 

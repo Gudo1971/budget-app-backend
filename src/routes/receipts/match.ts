@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../../lib/db";
 import { matchingService } from "../../services/matching/matching.service";
-import { MatchResult, MatchInput } from "../../../../shared/types/matching";
+import { MatchResult, MatchInput } from "@shared/types/matching";
 import { normalizeMerchant } from "@shared/services/normalizeMerchant";
 const router = Router();
 const USER_ID = "demo-user";

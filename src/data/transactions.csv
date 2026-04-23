@@ -92,5 +92,343 @@ date,description,amount,category_name,subcategory_name
 2025-03-29,Stadsschouwburg,-44.00,Uitjes,Cultuur
 2025-03-30,HEMA,-18.40,Shopping,Warenhuis
 2025-03-31,Decathlon,-55.00,Kinderen,Sportkleding
+2025-04-01,Salaris Apr,3200.00,Inkomen,Salaris
+2025-04-01,Kindgebonden Budget,290.00,Inkomen,Toeslagen
+2025-04-02,Huur,-1150.00,Wonen,Huur
+2025-04-03,Energie Vattenfall,-171.00,Wonen,Energie
+2025-04-04,Waterbedrijf,-32.50,Wonen,Water
+2025-04-05,Ziggo Internet & TV,-62.50,Telecom,Internet & TV
+2025-04-06,KPN Mobiel,-45.00,Telecom,Mobiel
+2025-04-07,Albert Heijn,-98.20,Boodschappen,Supermarkt
+2025-04-08,Lidl,-51.40,Boodschappen,Supermarkt
+2025-04-09,Shell Benzine,-79.80,Auto,Brandstof
+2025-04-10,Wegenbelasting,-64.00,Auto,Wegenbelasting
+2025-04-11,Autoverzekering,-48.90,Auto,Verzekering
+2025-04-12,Netflix,-15.99,Abonnementen,Streaming
+2025-04-13,Spotify,-9.99,Abonnementen,Muziek
+2025-04-14,Disney+,-8.99,Abonnementen,Streaming
+2025-04-15,HEMA,-22.60,Shopping,Warenhuis
+2025-04-16,Intertoys,-33.00,Kinderen,Speelgoed
+2025-04-17,Schoolbijdrage,-35.00,Kinderen,School
+2025-04-18,Burger King,-29.40,Horeca,Fastfood
+2025-04-19,Restaurant Sakura,-76.20,Horeca,Restaurants
+2025-04-20,Albert Heijn,-86.90,Boodschappen,Supermarkt
+2025-04-21,Kinderopvang,-340.00,Kinderen,Oppas & BSO
+2025-04-22,Etos,-21.30,Persoonlijke verzorging,Drogist
+2025-04-23,Apotheek,-13.20,Gezondheid,Medicijnen
+2025-04-24,HEMA,-19.80,Shopping,Warenhuis
+2025-04-25,Shell Benzine,-73.50,Auto,Brandstof
+2025-04-26,Parkeerapp,-7.10,Auto,Parkeren
+2025-04-27,Albert Heijn,-94.20,Boodschappen,Supermarkt
+2025-04-28,Decathlon,-58.00,Kinderen,Sportkleding
+2025-04-29,Netflix Games,-4.99,Abonnementen,Gaming
+2025-04-30,Stadsschouwburg,-46.00,Uitjes,Cultuur
+2025-05-01,Salaris Mei,3200.00,Inkomen,Salaris
+2025-05-01,Kindgebonden Budget,290.00,Inkomen,Toeslagen
+2025-05-02,Huur,-1150.00,Wonen,Huur
+2025-05-03,Energie Vattenfall,-162.00,Wonen,Energie
+2025-05-04,Ziggo Internet & TV,-62.50,Telecom,Internet & TV
+2025-05-05,KPN Mobiel,-45.00,Telecom,Mobiel
+2025-05-06,Albert Heijn,-101.20,Boodschappen,Supermarkt
+2025-05-07,Lidl,-49.80,Boodschappen,Supermarkt
+2025-05-08,Shell Benzine,-76.40,Auto,Brandstof
+2025-05-09,Wegenbelasting,-64.00,Auto,Wegenbelasting
+2025-05-10,Autoverzekering,-48.90,Auto,Verzekering
+2025-05-11,Netflix,-15.99,Abonnementen,Streaming
+2025-05-12,Spotify,-9.99,Abonnementen,Muziek
+2025-05-13,Disney+,-8.99,Abonnementen,Streaming
+2025-05-14,Albert Heijn,-92.70,Boodschappen,Supermarkt
+2025-05-15,HEMA,-26.40,Shopping,Warenhuis
+2025-05-16,Intertoys,-34.00,Kinderen,Speelgoed
+2025-05-17,Schoolbijdrage,-35.00,Kinderen,School
+2025-05-18,Dominos,-27.80,Horeca,Fastfood
+2025-05-19,Restaurant Bella Italia,-74.20,Horeca,Restaurants
+2025-05-20,Albert Heijn,-88.60,Boodschappen,Supermarkt
+2025-05-21,Kinderopvang,-340.00,Kinderen,Oppas & BSO
+2025-05-22,Etos,-22.90,Persoonlijke verzorging,Drogist
+2025-05-23,Apotheek,-13.10,Gezondheid,Medicijnen
+2025-05-24,HEMA,-18.90,Shopping,Warenhuis
+2025-05-25,Shell Benzine,-71.50,Auto,Brandstof
+2025-05-26,Parkeerapp,-6.90,Auto,Parkeren
+2025-05-27,Albert Heijn,-97.40,Boodschappen,Supermarkt
+2025-05-28,Decathlon,-52.00,Kinderen,Sportkleding
+2025-05-29,Netflix Games,-4.99,Abonnementen,Gaming
+2025-05-30,Stadsschouwburg,-41.00,Uitjes,Cultuur
+2025-05-31,HEMA,-20.10,Shopping,Warenhuis
+2025-06-01,Salaris Jun,3200.00,Inkomen,Salaris
+2025-06-01,Kindgebonden Budget,290.00,Inkomen,Toeslagen
+2025-06-02,Huur,-1150.00,Wonen,Huur
+2025-06-03,Energie Vattenfall,-148.00,Wonen,Energie
+2025-06-04,Ziggo Internet & TV,-62.50,Telecom,Internet & TV
+2025-06-05,KPN Mobiel,-45.00,Telecom,Mobiel
+2025-06-06,Albert Heijn,-97.40,Boodschappen,Supermarkt
+2025-06-07,Lidl,-46.90,Boodschappen,Supermarkt
+2025-06-08,Shell Benzine,-72.60,Auto,Brandstof
+2025-06-09,Wegenbelasting,-64.00,Auto,Wegenbelasting
+2025-06-10,Autoverzekering,-48.90,Auto,Verzekering
+2025-06-11,Netflix,-15.99,Abonnementen,Streaming
+2025-06-12,Spotify,-9.99,Abonnementen,Muziek
+2025-06-13,Disney+,-8.99,Abonnementen,Streaming
+2025-06-14,Albert Heijn,-89.70,Boodschappen,Supermarkt
+2025-06-15,HEMA,-24.10,Shopping,Warenhuis
+2025-06-16,Intertoys,-31.00,Kinderen,Speelgoed
+2025-06-17,Schoolbijdrage,-35.00,Kinderen,School
+2025-06-18,McDonalds,-29.90,Horeca,Fastfood
+2025-06-19,Restaurant De Haven,-78.40,Horeca,Restaurants
+2025-06-20,Albert Heijn,-92.30,Boodschappen,Supermarkt
+2025-06-21,Kinderopvang,-340.00,Kinderen,Oppas & BSO
+2025-06-22,Etos,-21.70,Persoonlijke verzorging,Drogist
+2025-06-23,Apotheek,-12.60,Gezondheid,Medicijnen
+2025-06-24,HEMA,-19.30,Shopping,Warenhuis
+2025-06-25,Shell Benzine,-70.20,Auto,Brandstof
+2025-06-26,Parkeerapp,-6.40,Auto,Parkeren
+2025-06-27,Albert Heijn,-95.10,Boodschappen,Supermarkt
+2025-06-28,Decathlon,-54.00,Kinderen,Sportkleding
+2025-06-29,Netflix Games,-4.99,Abonnementen,Gaming
+2025-06-30,Stadsschouwburg,-43.00,Uitjes,Cultuur
+2025-07-01,Salaris Jul,3200.00,Inkomen,Salaris
+2025-07-01,Kindgebonden Budget,290.00,Inkomen,Toeslagen
+2025-07-02,Huur,-1150.00,Wonen,Huur
+2025-07-03,Energie Vattenfall,-139.00,Wonen,Energie
+2025-07-04,Waterbedrijf,-32.50,Wonen,Water
+2025-07-05,Ziggo Internet & TV,-62.50,Telecom,Internet & TV
+2025-07-06,KPN Mobiel,-45.00,Telecom,Mobiel
+2025-07-07,Albert Heijn,-89.40,Boodschappen,Supermarkt
+2025-07-08,Lidl,-44.80,Boodschappen,Supermarkt
+2025-07-09,Shell Benzine,-74.20,Auto,Brandstof
+2025-07-10,Wegenbelasting,-64.00,Auto,Wegenbelasting
+2025-07-11,Autoverzekering,-48.90,Auto,Verzekering
+2025-07-12,Netflix,-15.99,Abonnementen,Streaming
+2025-07-13,Spotify,-9.99,Abonnementen,Muziek
+2025-07-14,Disney+,-8.99,Abonnementen,Streaming
+2025-07-15,Albert Heijn,-93.10,Boodschappen,Supermarkt
+2025-07-16,HEMA,-23.40,Shopping,Warenhuis
+2025-07-17,Intertoys,-36.00,Kinderen,Speelgoed
+2025-07-18,Schoolbijdrage,-35.00,Kinderen,School
+2025-07-19,McDonalds,-31.20,Horeca,Fastfood
+2025-07-20,Restaurant Strandpaviljoen,-82.50,Horeca,Restaurants
+2025-07-21,Kinderopvang,-340.00,Kinderen,Oppas & BSO
+2025-07-22,Etos,-20.90,Persoonlijke verzorging,Drogist
+2025-07-23,Apotheek,-12.40,Gezondheid,Medicijnen
+2025-07-24,HEMA,-18.70,Shopping,Warenhuis
+2025-07-25,Shell Benzine,-71.80,Auto,Brandstof
+2025-07-26,Parkeerapp,-7.30,Auto,Parkeren
+2025-07-27,Albert Heijn,-91.60,Boodschappen,Supermarkt
+2025-07-28,Decathlon,-57.00,Kinderen,Sportkleding
+2025-07-29,Netflix Games,-4.99,Abonnementen,Gaming
+2025-07-30,Walibi Holland,-58.00,Uitjes,Pretpark
+2025-07-31,HEMA,-21.10,Shopping,Warenhuis
+2025-08-01,Salaris Aug,3200.00,Inkomen,Salaris
+2025-08-01,Kindgebonden Budget,290.00,Inkomen,Toeslagen
+2025-08-02,Huur,-1150.00,Wonen,Huur
+2025-08-03,Energie Vattenfall,-136.00,Wonen,Energie
+2025-08-04,Ziggo Internet & TV,-62.50,Telecom,Internet & TV
+2025-08-05,KPN Mobiel,-45.00,Telecom,Mobiel
+2025-08-06,Albert Heijn,-86.40,Boodschappen,Supermarkt
+2025-08-07,Lidl,-43.20,Boodschappen,Supermarkt
+2025-08-08,Shell Benzine,-78.10,Auto,Brandstof
+2025-08-09,Wegenbelasting,-64.00,Auto,Wegenbelasting
+2025-08-10,Autoverzekering,-48.90,Auto,Verzekering
+2025-08-11,Netflix,-15.99,Abonnementen,Streaming
+2025-08-12,Spotify,-9.99,Abonnementen,Muziek
+2025-08-13,Disney+,-8.99,Abonnementen,Streaming
+2025-08-14,Albert Heijn,-91.30,Boodschappen,Supermarkt
+2025-08-15,HEMA,-25.20,Shopping,Warenhuis
+2025-08-16,Intertoys,-37.00,Kinderen,Speelgoed
+2025-08-17,Zwembadkaartjes,-28.00,Kinderen,Uitjes
+2025-08-18,McDonalds,-33.10,Horeca,Fastfood
+2025-08-19,Restaurant Boulevard,-84.70,Horeca,Restaurants
+2025-08-20,Albert Heijn,-88.40,Boodschappen,Supermarkt
+2025-08-21,Kinderopvang,-340.00,Kinderen,Oppas & BSO
+2025-08-22,Etos,-23.10,Persoonlijke verzorging,Drogist
+2025-08-23,Apotheek,-12.90,Gezondheid,Medicijnen
+2025-08-24,HEMA,-19.60,Shopping,Warenhuis
+2025-08-25,Shell Benzine,-75.40,Auto,Brandstof
+2025-08-26,Parkeerapp,-7.80,Auto,Parkeren
+2025-08-27,Albert Heijn,-94.50,Boodschappen,Supermarkt
+2025-08-28,Decathlon,-59.00,Kinderen,Sportkleding
+2025-08-29,Netflix Games,-4.99,Abonnementen,Gaming
+2025-08-30,Lowlands Festival,-89.00,Uitjes,Festival
+2025-08-31,HEMA,-20.40,Shopping,Warenhuis
+2025-09-01,Salaris Sep,3200.00,Inkomen,Salaris
+2025-09-01,Kindgebonden Budget,290.00,Inkomen,Toeslagen
+2025-09-02,Huur,-1150.00,Wonen,Huur
+2025-09-03,Energie Vattenfall,-152.00,Wonen,Energie
+2025-09-04,Ziggo Internet & TV,-62.50,Telecom,Internet & TV
+2025-09-05,KPN Mobiel,-45.00,Telecom,Mobiel
+2025-09-06,Albert Heijn,-102.40,Boodschappen,Supermarkt
+2025-09-07,Lidl,-48.30,Boodschappen,Supermarkt
+2025-09-08,Shell Benzine,-73.90,Auto,Brandstof
+2025-09-09,Wegenbelasting,-64.00,Auto,Wegenbelasting
+2025-09-10,Autoverzekering,-48.90,Auto,Verzekering
+2025-09-11,Netflix,-15.99,Abonnementen,Streaming
+2025-09-12,Spotify,-9.99,Abonnementen,Muziek
+2025-09-13,Disney+,-8.99,Abonnementen,Streaming
+2025-09-14,Albert Heijn,-95.80,Boodschappen,Supermarkt
+2025-09-15,HEMA,-27.60,Shopping,Warenhuis
+2025-09-16,Intertoys,-38.00,Kinderen,Speelgoed
+2025-09-17,Schoolspullen,-42.00,Kinderen,School
+2025-09-18,Dominos,-28.40,Horeca,Fastfood
+2025-09-19,Restaurant De Gouden Leeuw,-79.30,Horeca,Restaurants
+2025-09-20,Albert Heijn,-91.20,Boodschappen,Supermarkt
+2025-09-21,Kinderopvang,-340.00,Kinderen,Oppas & BSO
+2025-09-22,Etos,-22.40,Persoonlijke verzorging,Drogist
+2025-09-23,Apotheek,-13.50,Gezondheid,Medicijnen
+2025-09-24,HEMA,-19.10,Shopping,Warenhuis
+2025-09-25,Shell Benzine,-72.20,Auto,Brandstof
+2025-09-26,Parkeerapp,-6.70,Auto,Parkeren
+2025-09-27,Albert Heijn,-98.30,Boodschappen,Supermarkt
+2025-09-28,Decathlon,-61.00,Kinderen,Sportkleding
+2025-09-29,Netflix Games,-4.99,Abonnementen,Gaming
+2025-09-30,Stadsschouwburg,-45.00,Uitjes,Cultuur
+2025-10-01,Salaris Okt,3200.00,Inkomen,Salaris
+2025-10-01,Kindgebonden Budget,290.00,Inkomen,Toeslagen
+2025-10-02,Huur,-1150.00,Wonen,Huur
+2025-10-03,Energie Vattenfall,-168.00,Wonen,Energie
+2025-10-04,Waterbedrijf,-32.50,Wonen,Water
+2025-10-05,Ziggo Internet & TV,-62.50,Telecom,Internet & TV
+2025-10-06,KPN Mobiel,-45.00,Telecom,Mobiel
+2025-10-07,Albert Heijn,-108.40,Boodschappen,Supermarkt
+2025-10-08,Lidl,-52.10,Boodschappen,Supermarkt
+2025-10-09,Shell Benzine,-76.90,Auto,Brandstof
+2025-10-10,Wegenbelasting,-64.00,Auto,Wegenbelasting
+2025-10-11,Autoverzekering,-48.90,Auto,Verzekering
+2025-10-12,Netflix,-15.99,Abonnementen,Streaming
+2025-10-13,Spotify,-9.99,Abonnementen,Muziek
+2025-10-14,Disney+,-8.99,Abonnementen,Streaming
+2025-10-15,Albert Heijn,-101.20,Boodschappen,Supermarkt
+2025-10-16,HEMA,-28.40,Shopping,Warenhuis
+2025-10-17,Intertoys,-35.00,Kinderen,Speelgoed
+2025-10-18,Schoolbijdrage,-35.00,Kinderen,School
+2025-10-19,Dominos,-27.90,Horeca,Fastfood
+2025-10-20,Restaurant Bistro 12,-78.60,Horeca,Restaurants
+2025-10-21,Kinderopvang,-340.00,Kinderen,Oppas & BSO
+2025-10-22,Etos,-23.70,Persoonlijke verzorging,Drogist
+2025-10-23,Apotheek,-14.40,Gezondheid,Medicijnen
+2025-10-24,HEMA,-20.30,Shopping,Warenhuis
+2025-10-25,Shell Benzine,-74.10,Auto,Brandstof
+2025-10-26,Parkeerapp,-7.40,Auto,Parkeren
+2025-10-27,Albert Heijn,-104.60,Boodschappen,Supermarkt
+2025-10-28,Decathlon,-63.00,Kinderen,Sportkleding
+2025-10-29,Netflix Games,-4.99,Abonnementen,Gaming
+2025-10-30,Stadsschouwburg,-47.00,Uitjes,Cultuur
+2025-10-31,HEMA,-22.10,Shopping,Warenhuis
+2025-11-01,Salaris Nov,3200.00,Inkomen,Salaris
+2025-11-01,Kindgebonden Budget,290.00,Inkomen,Toeslagen
+2025-11-02,Huur,-1150.00,Wonen,Huur
+2025-11-03,Energie Vattenfall,-182.00,Wonen,Energie
+2025-11-04,Ziggo Internet & TV,-62.50,Telecom,Internet & TV
+2025-11-05,KPN Mobiel,-45.00,Telecom,Mobiel
+2025-11-06,Albert Heijn,-112.40,Boodschappen,Supermarkt
+2025-11-07,Lidl,-54.10,Boodschappen,Supermarkt
+2025-11-08,Shell Benzine,-78.20,Auto,Brandstof
+2025-11-09,Wegenbelasting,-64.00,Auto,Wegenbelasting
+2025-11-10,Autoverzekering,-48.90,Auto,Verzekering
+2025-11-11,Netflix,-15.99,Abonnementen,Streaming
+2025-11-12,Spotify,-9.99,Abonnementen,Muziek
+2025-11-13,Disney+,-8.99,Abonnementen,Streaming
+2025-11-14,Albert Heijn,-106.80,Boodschappen,Supermarkt
+2025-11-15,HEMA,-29.40,Shopping,Warenhuis
+2025-11-16,Intertoys,-48.00,Kinderen,Sinterklaas
+2025-11-17,Schoolbijdrage,-35.00,Kinderen,School
+2025-11-18,Dominos,-27.60,Horeca,Fastfood
+2025-11-19,Restaurant De Hofstede,-76.40,Horeca,Restaurants
+2025-11-20,Albert Heijn,-102.30,Boodschappen,Supermarkt
+2025-11-21,Kinderopvang,-340.00,Kinderen,Oppas & BSO
+2025-11-22,Etos,-24.20,Persoonlijke verzorging,Drogist
+2025-11-23,Apotheek,-14.80,Gezondheid,Medicijnen
+2025-11-24,HEMA,-21.10,Shopping,Warenhuis
+2025-11-25,Shell Benzine,-75.90,Auto,Brandstof
+2025-11-26,Parkeerapp,-7.60,Auto,Parkeren
+2025-11-27,Albert Heijn,-109.70,Boodschappen,Supermarkt
+2025-11-28,Decathlon,-66.00,Kinderen,Sportkleding
+2025-11-29,Netflix Games,-4.99,Abonnementen,Gaming
+2025-11-30,Stadsschouwburg,-49.00,Uitjes,Cultuur
+2025-12-01,Salaris Dec,3200.00,Inkomen,Salaris
+2025-12-01,Kindgebonden Budget,290.00,Inkomen,Toeslagen
+2025-12-02,Huur,-1150.00,Wonen,Huur
+2025-12-03,Energie Vattenfall,-198.00,Wonen,Energie
+2025-12-04,Ziggo Internet & TV,-62.50,Telecom,Internet & TV
+2025-12-05,KPN Mobiel,-45.00,Telecom,Mobiel
+2025-12-06,Albert Heijn,-128.40,Boodschappen,Supermarkt
+2025-12-07,Lidl,-58.20,Boodschappen,Supermarkt
+2025-12-08,Shell Benzine,-82.10,Auto,Brandstof
+2025-12-09,Wegenbelasting,-64.00,Auto,Wegenbelasting
+2025-12-10,Autoverzekering,-48.90,Auto,Verzekering
+2025-12-11,Netflix,-15.99,Abonnementen,Streaming
+2025-12-12,Spotify,-9.99,Abonnementen,Muziek
+2025-12-13,Disney+,-8.99,Abonnementen,Streaming
+2025-12-14,Albert Heijn,-134.70,Boodschappen,Supermarkt
+2025-12-15,HEMA,-31.40,Shopping,Warenhuis
+2025-12-16,Intertoys,-72.00,Kinderen,Cadeaus
+2025-12-17,Schoolbijdrage,-35.00,Kinderen,School
+2025-12-18,Dominos,-29.80,Horeca,Fastfood
+2025-12-19,Restaurant Kerstdiner,-96.50,Horeca,Restaurants
+2025-12-20,Albert Heijn,-142.30,Boodschappen,Supermarkt
+2025-12-21,Kinderopvang,-340.00,Kinderen,Oppas & BSO
+2025-12-22,Etos,-26.40,Persoonlijke verzorging,Drogist
+2025-12-23,Apotheek,-15.20,Gezondheid,Medicijnen
+2025-12-24,HEMA,-22.80,Shopping,Warenhuis
+2025-12-25,Shell Benzine,-79.40,Auto,Brandstof
+2025-12-26,Parkeerapp,-8.10,Auto,Parkeren
+2025-12-27,Albert Heijn,-138.90,Boodschappen,Supermarkt
+2025-12-28,Decathlon,-68.00,Kinderen,Sportkleding
+2025-12-29,Netflix Games,-4.99,Abonnementen,Gaming
+2025-12-30,Stadsschouwburg,-52.00,Uitjes,Cultuur
+2025-12-31,HEMA,-24.60,Shopping,Warenhuis
+2026-01-01,Huur,-1450.00,Wonen,Huur
+2026-01-02,Ziggo Internet & TV,-89.00,Telecom,Internet & TV
+2026-01-03,Energie Eneco,-210.00,Wonen,Energie
+2026-01-04,Waterbedrijf,-32.00,Wonen,Water
+2026-01-05,Spotify,-14.99,Abonnementen,Muziek
+2026-01-05,Netflix,-9.99,Abonnementen,Streaming
+2026-01-06,iCloud,-6.99,Abonnementen,Cloud
+2026-01-07,Zorgverzekering,-120.00,Gezondheid,Verzekering
+2026-01-03,Albert Heijn,-68.40,Boodschappen,Supermarkt
+2026-01-10,Lidl,-54.20,Boodschappen,Supermarkt
+2026-01-17,Jumbo,-61.80,Boodschappen,Supermarkt
+2026-01-24,Albert Heijn,-72.10,Boodschappen,Supermarkt
+2026-01-31,Lidl,-59.30,Boodschappen,Supermarkt
+2026-01-12,Coffee Company,-18.50,Horeca,Café
+2026-01-20,Vapiano,-42.90,Horeca,Restaurants
+2026-01-27,McDonalds,-27.40,Horeca,Fastfood
+2026-01-15,HEMA,-24.99,Shopping,Warenhuis
+2026-01-22,Kruidvat,-12.50,Persoonlijke verzorging,Drogist
+2026-02-01,Huur,-1450.00,Wonen,Huur
+2026-02-02,Ziggo Internet & TV,-89.00,Telecom,Internet & TV
+2026-02-03,Energie Eneco,-205.00,Wonen,Energie
+2026-02-05,Spotify,-14.99,Abonnementen,Muziek
+2026-02-05,Netflix,-9.99,Abonnementen,Streaming
+2026-02-06,iCloud,-6.99,Abonnementen,Cloud
+2026-02-07,Zorgverzekering,-120.00,Gezondheid,Verzekering
+2026-02-02,Albert Heijn,-63.10,Boodschappen,Supermarkt
+2026-02-09,Lidl,-52.80,Boodschappen,Supermarkt
+2026-02-16,Jumbo,-71.20,Boodschappen,Supermarkt
+2026-02-23,Albert Heijn,-66.40,Boodschappen,Supermarkt
+2026-02-10,Starbucks,-22.90,Horeca,Café
+2026-02-14,Valentijns Diner,-68.50,Horeca,Restaurants
+2026-02-18,Pathe Cinema,-34.20,Uitjes,Cultuur
+2026-02-21,Pannenkoekenhuis,-48.90,Horeca,Restaurants
+2026-02-25,McDonalds,-29.80,Horeca,Fastfood
+2026-02-12,HEMA,-19.99,Shopping,Warenhuis
+2026-02-28,Kruidvat,-15.50,Persoonlijke verzorging,Drogist
+2026-03-01,Huur,-1450.00,Wonen,Huur
+2026-03-02,Ziggo Internet & TV,-89.00,Telecom,Internet & TV
+2026-03-03,Energie Eneco,-185.00,Wonen,Energie
+2026-03-04,Waterbedrijf,-32.00,Wonen,Water
+2026-03-05,Spotify,-14.99,Abonnementen,Muziek
+2026-03-05,Netflix,-9.99,Abonnementen,Streaming
+2026-03-06,iCloud,-6.99,Abonnementen,Cloud
+2026-03-07,Zorgverzekering,-120.00,Gezondheid,Verzekering
+2026-03-03,Albert Heijn,-64.20,Boodschappen,Supermarkt
+2026-03-10,Lidl,-53.40,Boodschappen,Supermarkt
+2026-03-17,Jumbo,-69.10,Boodschappen,Supermarkt
+2026-03-24,Albert Heijn,-62.80,Boodschappen,Supermarkt
+2026-03-31,Lidl,-58.70,Boodschappen,Supermarkt
+2026-03-08,Coffee Company,-17.90,Horeca,Café
+2026-03-15,Vapiano,-39.20,Horeca,Restaurants
+2026-03-22,McDonalds,-26.40,Horeca,Fastfood
+2026-03-12,H&M,-29.99,Shopping,Kleding
+2026-03-28,Kruidvat,-11.50,Persoonlijke verzorging,Drogist
 
 

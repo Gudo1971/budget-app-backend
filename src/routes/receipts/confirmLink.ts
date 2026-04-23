@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../../lib/db";
-import { Transaction } from "../../../../shared/types/Transaction";
+import { Transaction } from "../../shared/types/Transaction";
 
 const router = Router();
 const USER_ID = "demo-user";

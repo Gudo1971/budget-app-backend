@@ -3,6 +3,7 @@ import { transactionService } from "../services/transactions/transactions.servic
 import { resolveCategory } from "../services/categories/resolveCategory";
 import { resolveMerchantMemory } from "../services/merchantMemory/service/resolveMerchantMemory";
 import { db } from "../lib/db";
+import { normalizeMerchant } from "@shared/services/normalizeMerchant";
 
 const router = Router();
 console.log("🚀 transactions router loaded");
@@ -11,10 +12,83 @@ router.get("/debug", (req, res) => {
   res.json({ ok: true, route: "transactions router werkt" });
 });
 
-// ⭐ GET all transactions
+// ⭐ Mapping function (same as in transactionService)
+function mapTransaction(row: any) {
+  const normalized = normalizeMerchant(row.merchant);
+
+  return {
+    id: row.id,
+    date: row.transaction_date,
+    description: row.description,
+    amount: row.amount,
+    merchant: normalized.display,
+    receipt_id: row.receipt_id ?? null,
+    category_id: row.category_id ?? null,
+    subcategory_id: row.subcategory_id ?? null,
+    recurring: row.recurring === 1,
+    receipt: row.receipt_id
+      ? {
+          url: `http://localhost:3001/uploads/${row.receipt_filename}`,
+          thumbnail: null,
+          aiResult: row.receipt_ai_result
+            ? JSON.parse(row.receipt_ai_result)
+            : null,
+        }
+      : null,
+    userId: row.user_id,
+  };
+}
+
+// ⭐ GET all transactions (with optional date filtering)
 router.get("/", (req, res) => {
-  const transactions = transactionService.getAll();
-  res.json(transactions);
+  try {
+    const { from, to } = req.query;
+
+    // Geen filters → alles teruggeven
+    if (!from || !to) {
+      const all = transactionService.getAll();
+      return res.json(all);
+    }
+
+    // Met filters → database query
+    const filtered = db
+      .prepare(
+        `
+        SELECT 
+          t.id,
+          t.receipt_id,
+          t.amount,
+          t.transaction_date,
+          t.merchant,
+          t.description,
+          t.category_id,
+          t.subcategory_id,
+          t.user_id,
+          t.recurring,
+          r.filename AS receipt_filename,
+          r.aiResult AS receipt_ai_result
+        FROM transactions t
+        LEFT JOIN receipts r ON r.id = t.receipt_id
+        WHERE t.transaction_date >= ?
+        AND t.transaction_date <= ?
+        ORDER BY t.transaction_date DESC
+      `,
+      )
+      .all(from, to);
+
+    res.json({
+      success: true,
+      data: filtered.map(mapTransaction),
+      error: null,
+    });
+  } catch (error) {
+    console.error("❌ Error filtering transactions:", error);
+    res.status(500).json({ 
+      success: false,
+      data: null,
+      error: "Failed to fetch filtered transactions" 
+    });
+  }
 });
 
 // ⭐ POST: Create transaction (AUTOMATIC CATEGORY)
