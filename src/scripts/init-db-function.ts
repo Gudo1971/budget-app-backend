@@ -96,7 +96,8 @@ CREATE TABLE sub_budgets (
   FOREIGN KEY (category_id) REFERENCES categories(id)
 );
 
-    
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_subbudgets_unique
+ON sub_budgets (month, category_id);
 
     -- ============================
     -- BUDGET CATEGORIES
