@@ -83,10 +83,10 @@ router.get("/", (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error filtering transactions:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       data: null,
-      error: "Failed to fetch filtered transactions" 
+      error: "Failed to fetch filtered transactions",
     });
   }
 });
@@ -159,6 +159,31 @@ router.patch("/:id", (req, res) => {
     res.status(500).json({ error: "Failed to update transaction" });
   }
 });
+// ⭐ PUT: Update transaction category (for MoveTransactionModal)
+router.put("/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category_id, user_id } = req.body;
+
+    if (!category_id || !user_id) {
+      return res.status(400).json({ error: "Missing category_id or user_id" });
+    }
+
+    db.prepare(
+      `
+      UPDATE transactions
+      SET category_id = ?
+      WHERE id = ? AND user_id = ?
+    `,
+    ).run(category_id, id, user_id);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ PUT /transactions/:id error:", error);
+    res.status(500).json({ error: "Failed to update transaction" });
+  }
+});
+
 // ⭐ GET: Total income for a given month (YYYY-MM)
 router.get("/income/:month", (req, res) => {
   try {

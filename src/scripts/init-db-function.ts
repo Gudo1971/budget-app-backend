@@ -2,18 +2,17 @@ import { db } from "../lib/db";
 
 export function initDatabase() {
   db.exec(`
-
-
+    -- DROP ALL TABLES
     DROP TABLE IF EXISTS categories;
-DROP TABLE IF EXISTS subcategories;
-DROP TABLE IF EXISTS receipts;
-DROP TABLE IF EXISTS transactions;
-DROP TABLE IF EXISTS budgets;
-DROP TABLE IF EXISTS budget_categories;
-DROP TABLE IF EXISTS fixed_costs;
-DROP TABLE IF EXISTS merchant_memory;
-DROP TABLE IF EXISTS savings_goals;
-DROP TABLE IF EXISTS sub_budgets;
+    DROP TABLE IF EXISTS subcategories;
+    DROP TABLE IF EXISTS receipts;
+    DROP TABLE IF EXISTS transactions;
+    DROP TABLE IF EXISTS budgets;
+    DROP TABLE IF EXISTS budget_categories;
+    DROP TABLE IF EXISTS fixed_costs;
+    DROP TABLE IF EXISTS merchant_memory;
+    DROP TABLE IF EXISTS savings_goals;
+    DROP TABLE IF EXISTS sub_budgets;
 
     -- ============================
     -- CATEGORIES
@@ -22,8 +21,8 @@ DROP TABLE IF EXISTS sub_budgets;
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       type TEXT NOT NULL CHECK(type IN ('variable', 'fixed')),
-      user_id TEXT DEFAULT 'demo-user',
-     color TEXT
+      user_id TEXT NOT NULL,
+      color TEXT
     );
 
     -- ============================
@@ -75,46 +74,49 @@ DROP TABLE IF EXISTS sub_budgets;
       FOREIGN KEY (category_id) REFERENCES categories(id),
       FOREIGN KEY (subcategory_id) REFERENCES subcategories(id)
     );
-    -- ============================
-    -- BUDGETS
-    -- ============================
-   CREATE TABLE IF NOT EXISTS budgets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  month TEXT NOT NULL UNIQUE,
-  total_budget REAL NOT NULL
-);
-    -- ============================
-    -- SUB_BUDGETS
-    -- ============================
-CREATE TABLE sub_budgets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  month TEXT NOT NULL,               -- "2025-04"
-  category_id INTEGER NOT NULL,
-  amount REAL NOT NULL DEFAULT 0,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (category_id) REFERENCES categories(id)
-);
 
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_subbudgets_unique
-ON sub_budgets (month, category_id);
+    -- ============================
+    -- BUDGETS (GLOBAL, NOT PER USER)
+    -- ============================
+    CREATE TABLE budgets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL UNIQUE,
+      total_budget REAL NOT NULL
+    );
+
+    -- ============================
+    -- SUB_BUDGETS (PER USER, PER MAAND)
+    -- ============================
+    CREATE TABLE sub_budgets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      month TEXT NOT NULL,
+      category_id INTEGER NOT NULL,
+      amount REAL NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (category_id) REFERENCES categories(id)
+    );
+
+    CREATE UNIQUE INDEX idx_subbudgets_unique
+      ON sub_budgets (user_id, month, category_id);
 
     -- ============================
     -- BUDGET CATEGORIES
     -- ============================
-  CREATE TABLE IF NOT EXISTS budget_categories (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  month TEXT NOT NULL,
-  category_id INTEGER NOT NULL,
-  budget_amount REAL NOT NULL,
-  UNIQUE(month, category_id),
-  FOREIGN KEY (category_id) REFERENCES categories(id)
-);
+    CREATE TABLE budget_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      category_id INTEGER NOT NULL,
+      budget_amount REAL NOT NULL,
+      UNIQUE(month, category_id),
+      FOREIGN KEY (category_id) REFERENCES categories(id)
+    );
 
     -- ============================
     -- FIXED COSTS
     -- ============================
-    CREATE TABLE IF NOT EXISTS fixed_costs (
+    CREATE TABLE fixed_costs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       amount REAL NOT NULL,
@@ -138,7 +140,7 @@ ON sub_budgets (month, category_id);
     -- ============================
     -- SAVINGS GOALS
     -- ============================
-    CREATE TABLE IF NOT EXISTS savings_goals (
+    CREATE TABLE savings_goals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       target_amount REAL NOT NULL,
@@ -148,7 +150,7 @@ ON sub_budgets (month, category_id);
     );
 
     -- ============================
-    -- INDEXES for query performance
+    -- INDEXES
     -- ============================
     CREATE INDEX idx_transactions_user_id ON transactions(user_id);
     CREATE INDEX idx_transactions_category_id ON transactions(category_id);
