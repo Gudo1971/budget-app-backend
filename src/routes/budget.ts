@@ -10,67 +10,22 @@ router.get("/", (req, res) => {
   const rows = db
     .prepare(
       `
-      SELECT id, month, total_budget
-      FROM budgets
-      ORDER BY month DESC
-    `,
+    SELECT id, month, total_budget, remaining
+    FROM budgets
+    ORDER BY month DESC
+  `,
     )
-    .all() as { id: number; month: string; total_budget: number }[];
+    .all() as {
+    id: number;
+    month: string;
+    total_budget: number;
+    remaining: number;
+  }[];
 
   const budgets = rows.map((row) => {
     const subBudgets = db
       .prepare(
         `
-        SELECT 
-          sb.id,
-          sb.category_id,
-          sb.amount,
-          c.name AS category_name,
-          c.color AS category_color
-        FROM sub_budgets sb
-        JOIN categories c ON c.id = sb.category_id
-        WHERE sb.month = ?
-      `,
-      )
-      .all(row.month);
-
-    return {
-      ...row,
-      subBudgets,
-    };
-  });
-
-  res.json(budgets);
-});
-
-/* -------------------------------------------
-   GET BUDGET BY ID
-------------------------------------------- */
-router.get("/by-id/:id", (req, res) => {
-  const { id } = req.params;
-
-  const row = db
-    .prepare(
-      `
-      SELECT id, month, total_budget
-      FROM budgets
-      WHERE id = ?
-    `,
-    )
-    .get(id) as { id: number; month: string; total_budget: number } | undefined;
-
-  if (!row) {
-    return res.json({
-      id: null,
-      month: null,
-      total_budget: 0,
-      subBudgets: [],
-    });
-  }
-
-  const subBudgets = db
-    .prepare(
-      `
       SELECT 
         sb.id,
         sb.category_id,
@@ -81,13 +36,19 @@ router.get("/by-id/:id", (req, res) => {
       JOIN categories c ON c.id = sb.category_id
       WHERE sb.month = ?
     `,
-    )
-    .all(row.month);
+      )
+      .all(row.month) as {
+      id: number;
+      category_id: number;
+      amount: number;
+      category_name: string;
+      category_color: string;
+    }[];
 
-  res.json({
-    ...row,
-    subBudgets,
+    return { ...row, subBudgets };
   });
+
+  res.json(budgets);
 });
 
 /* -------------------------------------------
@@ -99,13 +60,18 @@ router.get("/:month", (req, res) => {
   const row = db
     .prepare(
       `
-      SELECT id, month, total_budget
+      SELECT id, month, total_budget, remaining
       FROM budgets
       WHERE month = ?
     `,
     )
     .get(month) as
-    | { id: number; month: string; total_budget: number }
+    | {
+        id: number;
+        month: string;
+        total_budget: number;
+        remaining: number | null;
+      }
     | undefined;
 
   if (!row) {
@@ -113,54 +79,65 @@ router.get("/:month", (req, res) => {
       id: null,
       month,
       total_budget: 0,
+      remaining: 0,
       subBudgets: [],
     });
   }
 
+  // ⭐ Normaliseer remaining (NULL → total_budget)
+  const normalizedRemaining =
+    row.remaining === null || row.remaining === undefined
+      ? row.total_budget
+      : row.remaining;
+
+  // ⭐ Subbudgets ophalen
   const subBudgets = db
     .prepare(
       `
-      SELECT 
-        sb.id,
-        sb.category_id,
-        sb.amount,
-        c.name AS category_name,
-        c.color AS category_color
-      FROM sub_budgets sb
-      JOIN categories c ON c.id = sb.category_id
-      WHERE sb.month = ?
+      SELECT id, category_id, amount
+      FROM sub_budgets
+      WHERE month = ?
     `,
     )
     .all(month);
 
-  res.json({
+  return res.json({
     ...row,
+    remaining: normalizedRemaining,
     subBudgets,
   });
 });
 
 /* -------------------------------------------
-   CREATE BUDGET
+   CREATE OR UPDATE BUDGET
 ------------------------------------------- */
 router.post("/", (req, res) => {
-  const { month, total_budget } = req.body;
-
+  const { month, total_budget, remaining } = req.body;
+  console.log("POST /budget body:", req.body);
   db.prepare(
     `
-    INSERT INTO budgets (month, total_budget)
-    VALUES (?, ?)
+    INSERT INTO budgets (month, total_budget, remaining)
+    VALUES (?, ?, ?)
+    ON CONFLICT(month) DO UPDATE SET
+      total_budget = excluded.total_budget,
+      remaining = excluded.remaining
   `,
-  ).run(month, total_budget);
+  ).run(month, total_budget, remaining);
 
   const created = db
     .prepare(
       `
-    SELECT id, month, total_budget
+    SELECT id, month, total_budget, remaining
     FROM budgets
     WHERE month = ?
   `,
     )
-    .get(month);
+    .get(month) as {
+    id: number;
+    month: string;
+    total_budget: number;
+    remaining: number;
+  };
 
   res.json(created);
 });
@@ -170,29 +147,94 @@ router.post("/", (req, res) => {
 ------------------------------------------- */
 router.put("/:month", (req, res) => {
   const { month } = req.params;
-  const { total_budget } = req.body;
-
-  const existing = db
-    .prepare(`SELECT id FROM budgets WHERE month = ?`)
-    .get(month);
-
-  if (existing) {
-    db.prepare(`UPDATE budgets SET total_budget = ? WHERE month = ?`).run(
-      total_budget,
-      month,
-    );
-  } else {
-    db.prepare(`INSERT INTO budgets (month, total_budget) VALUES (?, ?)`).run(
-      month,
-      total_budget,
-    );
-  }
+  const { total_budget, remaining } = req.body;
+  console.log("PUT/budget body:", req.body);
+  db.prepare(
+    `
+    INSERT INTO budgets (month, total_budget, remaining)
+    VALUES (?, ?, ?)
+    ON CONFLICT(month) DO UPDATE SET
+      total_budget = excluded.total_budget,
+      remaining = excluded.remaining
+  `,
+  ).run(month, total_budget, remaining);
 
   const updated = db
-    .prepare(`SELECT id, month, total_budget FROM budgets WHERE month = ?`)
-    .get(month);
+    .prepare(
+      `
+    SELECT id, month, total_budget, remaining
+    FROM budgets
+    WHERE month = ?
+  `,
+    )
+    .get(month) as {
+    id: number;
+    month: string;
+    total_budget: number;
+    remaining: number;
+  };
 
   res.json(updated);
+});
+
+/* -------------------------------------------
+   ROLLOVER
+------------------------------------------- */
+router.post("/rollover/:month", (req, res) => {
+  const { month } = req.params;
+
+  const current = db
+    .prepare(
+      `
+    SELECT month, total_budget, remaining
+    FROM budgets
+    WHERE month = ?
+  `,
+    )
+    .get(month) as
+    | {
+        month: string;
+        total_budget: number;
+        remaining: number;
+      }
+    | undefined;
+
+  if (!current) {
+    return res.status(404).json({ error: "Budget not found" });
+  }
+
+  const remaining = current.remaining;
+
+  if (remaining <= 0) {
+    return res.status(400).json({ error: "No remaining budget to roll over" });
+  }
+
+  const [year, m] = month.split("-").map(Number);
+  const nextMonth =
+    m === 12 ? `${year + 1}-01` : `${year}-${String(m + 1).padStart(2, "0")}`;
+
+  db.prepare(
+    `
+    INSERT INTO budgets (month, total_budget, remaining)
+    VALUES (?, 0, 0)
+    ON CONFLICT(month) DO NOTHING
+  `,
+  ).run(nextMonth);
+
+  db.prepare(
+    `
+    UPDATE budgets
+    SET total_budget = total_budget + ?
+    WHERE month = ?
+  `,
+  ).run(remaining, nextMonth);
+
+  res.json({
+    success: true,
+    from: month,
+    to: nextMonth,
+    amount: remaining,
+  });
 });
 
 /* -------------------------------------------
@@ -204,32 +246,45 @@ router.post("/copy/:from/:to", (req, res) => {
   const prev = db
     .prepare(
       `
-      SELECT total_budget
-      FROM budgets
-      WHERE month = ?
-    `,
+    SELECT total_budget, remaining
+    FROM budgets
+    WHERE month = ?
+  `,
     )
-    .get(from) as { total_budget: number } | undefined;
+    .get(from) as
+    | {
+        total_budget: number;
+        remaining: number;
+      }
+    | undefined;
 
   if (!prev) return res.status(404).json(null);
+  console.log("POST /budget body:", req.body);
 
   db.prepare(
     `
-      INSERT INTO budgets (month, total_budget)
-      VALUES (?, ?)
-      ON CONFLICT(month) DO UPDATE SET total_budget = excluded.total_budget
-    `,
-  ).run(to, prev.total_budget);
+    INSERT INTO budgets (month, total_budget, remaining)
+    VALUES (?, ?, ?)
+    ON CONFLICT(month) DO UPDATE SET
+      total_budget = excluded.total_budget,
+      remaining = excluded.remaining
+  `,
+  ).run(to, prev.total_budget, prev.remaining);
 
   const newBudget = db
     .prepare(
       `
-      SELECT id, month, total_budget
-      FROM budgets
-      WHERE month = ?
-    `,
+    SELECT id, month, total_budget, remaining
+    FROM budgets
+    WHERE month = ?
+  `,
     )
-    .get(to);
+    .get(to) as {
+    id: number;
+    month: string;
+    total_budget: number;
+    remaining: number;
+  };
 
   res.json(newBudget);
 });

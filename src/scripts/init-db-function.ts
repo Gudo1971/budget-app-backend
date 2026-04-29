@@ -13,6 +13,7 @@ export function initDatabase() {
     DROP TABLE IF EXISTS merchant_memory;
     DROP TABLE IF EXISTS savings_goals;
     DROP TABLE IF EXISTS sub_budgets;
+    DROP TABLE IF EXISTS rollovers;
 
     -- ============================
     -- CATEGORIES
@@ -78,11 +79,12 @@ export function initDatabase() {
     -- ============================
     -- BUDGETS (GLOBAL, NOT PER USER)
     -- ============================
-    CREATE TABLE budgets (
+ CREATE TABLE budgets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       month TEXT NOT NULL UNIQUE,
-      total_budget REAL NOT NULL
-    );
+      total_budget REAL NOT NULL,
+     remaining REAL DEFAULT 0
+  );
 
     -- ============================
     -- SUB_BUDGETS (PER USER, PER MAAND)
@@ -148,6 +150,15 @@ export function initDatabase() {
       deadline TEXT,
       user_id TEXT NOT NULL
     );
+-- ============================
+-- ROLLOVERS
+-- ============================
+CREATE TABLE rollovers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  month TEXT NOT NULL UNIQUE,
+  amount REAL NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 
     -- ============================
     -- INDEXES
