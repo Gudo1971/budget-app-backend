@@ -15,7 +15,7 @@ function mapTransaction(row: any) {
     id: row.id,
     date: row.transaction_date,
     description: row.description,
-    amount: row.amount,
+    amount: parseFloat(row.amount), // ✅ Parse NUMERIC to number
     merchant: normalized.display,
     receipt_id: row.receipt_id ?? null,
     category_id: row.category_id ?? null,

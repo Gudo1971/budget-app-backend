@@ -3,7 +3,7 @@ import { pool } from "../lib/db";
 import { transactionService } from "../services/transactions/transactions.service";
 import { resolveCategory } from "../services/categories/resolveCategory";
 import { resolveMerchantMemory } from "../services/merchantMemory/service/resolveMerchantMemory";
-import { normalizeMerchant } from "../../../shared/services/normalizeMerchant";
+import { normalizeMerchant } from "../shared/services/normalizeMerchant";
 
 const router = Router();
 console.log("🚀 transactions router loaded");
@@ -20,7 +20,7 @@ function mapTransaction(row: any) {
     id: row.id,
     date: row.transaction_date,
     description: row.description,
-    amount: row.amount,
+    amount: parseFloat(row.amount), // ✅ Parse NUMERIC to number
     merchant: normalized.display,
     receipt_id: row.receipt_id ?? null,
     category_id: row.category_id ?? null,

@@ -33,9 +33,16 @@ router.get("/", async (req, res) => {
       [userId, from, to],
     );
 
+    // ✅ Parse NUMERIC to number for frontend
+    const data = result.rows.map((row) => ({
+      category_id: row.category_id,
+      name: row.name,
+      total: parseFloat(row.total),
+    }));
+
     res.json({
       success: true,
-      data: result.rows,
+      data,
       error: null,
     });
   } catch (err) {
