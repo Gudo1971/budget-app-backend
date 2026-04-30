@@ -1,3 +1,11 @@
-import { initDatabase } from "./init-db-function"; // pas pad aan naar waar jouw functie staat
+import { initDatabase } from "./init-db-function";
 
-initDatabase();
+initDatabase()
+  .then(() => {
+    console.log("✅ Database initialization complete");
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error("❌ Database initialization failed:", error);
+    process.exit(1);
+  });

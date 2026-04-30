@@ -1,22 +1,21 @@
-import { db } from "../../lib/db";
+import { pool } from "../../lib/db";
 import { findCategoryIdByName } from "../categories/category.service";
 
-export function createBudget(data: {
+export async function createBudget(data: {
   category: string;
   amount: number;
   period: string;
 }) {
-  const categoryId = findCategoryIdByName(data.category);
+  const categoryId = await findCategoryIdByName(data.category);
 
   if (!categoryId) {
     throw new Error(`Category not found: ${data.category}`);
   }
 
-  const insert = db
-    .prepare(
-      "INSERT INTO budgets (category_id, amount, period) VALUES (?, ?, ?)",
-    )
-    .run(categoryId, data.amount, data.period);
+  const result = await pool.query(
+    "INSERT INTO budgets (category_id, amount, period) VALUES ($1, $2, $3) RETURNING id",
+    [categoryId, data.amount, data.period],
+  );
 
-  return insert.lastInsertRowid as number;
+  return result.rows[0].id as number;
 }

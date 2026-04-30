@@ -3,7 +3,7 @@ import "dotenv/config";
 import fs from "fs";
 import path from "path";
 
-import { db } from "../lib/db";
+import { pool } from "../lib/db";
 import { initDatabase } from "./init-db-function";
 import { importCategoriesCsv } from "./import-categories";
 import { importBudgetsCsv } from "./import-budgets";
@@ -17,22 +17,22 @@ import { importSubcategoriesCsv } from "./import-subcategories";
 async function importAllCsvs() {
   const dataDir = path.join(__dirname, "..", "data");
 
-  // ⭐ FOREIGN KEYS UIT vóór droppen
-  db.pragma("foreign_keys = OFF");
-
   console.log("💣 Dropping all tables...");
   try {
-    db.exec(`
-      DROP TABLE IF EXISTS transactions;
-      DROP TABLE IF EXISTS receipts;
-      DROP TABLE IF EXISTS budget_categories;
-      DROP TABLE IF EXISTS budgets;
-      DROP TABLE IF EXISTS fixed_costs;
-      DROP TABLE IF EXISTS savings_goals;
-      DROP TABLE IF EXISTS subcategories;
-      DROP TABLE IF EXISTS categories;
-      DROP TABLE IF EXISTS merchant_memory;
-      DELETE FROM sqlite_sequence;
+    // PostgreSQL CASCADE zorgt ervoor dat dependencies ook worden verwijderd
+    await pool.query(`
+      DROP TABLE IF EXISTS transactions CASCADE;
+      DROP TABLE IF EXISTS receipts CASCADE;
+      DROP TABLE IF EXISTS budget_categories CASCADE;
+      DROP TABLE IF EXISTS budgets CASCADE;
+      DROP TABLE IF EXISTS fixed_costs CASCADE;
+      DROP TABLE IF EXISTS savings_goals CASCADE;
+      DROP TABLE IF EXISTS subcategories CASCADE;
+      DROP TABLE IF EXISTS categories CASCADE;
+      DROP TABLE IF EXISTS merchant_memory CASCADE;
+      DROP TABLE IF EXISTS sub_budgets CASCADE;
+      DROP TABLE IF EXISTS savings CASCADE;
+      DROP TABLE IF EXISTS rollovers CASCADE;
     `);
     console.log("✅ All tables dropped");
   } catch (error) {
@@ -41,7 +41,7 @@ async function importAllCsvs() {
 
   console.log("🔨 Building schema...");
   try {
-    initDatabase();
+    await initDatabase();
     console.log("✅ Schema initialized");
   } catch (error) {
     console.log(
@@ -50,9 +50,6 @@ async function importAllCsvs() {
     );
     throw error;
   }
-
-  // ⭐ FOREIGN KEYS WEER AAN NA schema build
-  db.pragma("foreign_keys = ON");
 
   console.log("Starting CSV import...");
 

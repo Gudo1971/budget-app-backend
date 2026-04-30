@@ -3,18 +3,15 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
-    "dev": "nodemon --watch src --exec ts-node -r tsconfig-paths/register src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "seed": "ts-node -r tsconfig-paths/register src/scripts/import-all-csvs.ts",
-    "db:init": "ts-node -r tsconfig-paths/register src/scripts/init-db.ts",
-    "db:seed": "ts-node -r tsconfig-paths/register src/scripts/import-all-csvs.ts"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "type": "commonjs",
+  "scripts": {
+    "dev": "nodemon --watch src --exec ts-node -P tsconfig.json -r tsconfig-paths/register src/index.ts",
+    "build": "tsc -P tsconfig.json",
+    "start": "node dist/index.js",
+    "seed": "ts-node -P tsconfig.json -r tsconfig-paths/register src/scripts/import-all-csvs.ts",
+    "db:init": "ts-node -P tsconfig.json -r tsconfig-paths/register src/scripts/init-db.ts",
+    "db:seed": "ts-node -P tsconfig.json -r tsconfig-paths/register src/scripts/import-all-csvs.ts"
+  },
   "dependencies": {
     "@chakra-ui/react": "^2.7.1",
     "@emotion/react": "^11.10.6",

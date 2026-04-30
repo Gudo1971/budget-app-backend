@@ -4,7 +4,7 @@ import csv from "csv-parser";
 
 import { resolveMerchantMemory } from "../services/merchantMemory/service/resolveMerchantMemory";
 import { resolveCategory } from "../services/categories/resolveCategory";
-import { db } from "../lib/db";
+import { pool } from "../lib/db";
 
 const userId = "demo-user"; // <-- jouw user
 
@@ -18,10 +18,12 @@ export async function importCsv(filePath: string) {
       .on("end", async () => {
         try {
           for (const row of rows) {
-            const merchant = row.merchant || row.Merchant || row.MERCHANT;
+            const merchant = row.merchant || row.Merchant || row.MERCHANT || "";
             const description =
-              row.description || row.Description || row.DESCRIPTION;
-            const amount = parseFloat(row.amount || row.Amount || row.AMOUNT);
+              row.description || row.Description || row.DESCRIPTION || "";
+            const amount = parseFloat(
+              row.amount || row.Amount || row.AMOUNT || "0",
+            );
 
             // 1. Merchant memory
             const merchantResolved = await resolveMerchantMemory(
@@ -30,25 +32,26 @@ export async function importCsv(filePath: string) {
             );
 
             // 2. Category resolution
-            const categoryResolved = resolveCategory(
+            const categoryResolved = await resolveCategory(
               userId,
               merchant,
               description,
               amount,
             );
 
-            // 3. Insert transaction
-            db.prepare(
+            // 3. Insert transaction (PostgreSQL)
+            await pool.query(
               `
               INSERT INTO transactions (user_id, merchant, description, amount, category_id)
-              VALUES (?, ?, ?, ?, ?)
-            `,
-            ).run(
-              userId,
-              merchant,
-              description,
-              amount,
-              categoryResolved.category_id,
+              VALUES ($1, $2, $3, $4, $5)
+              `,
+              [
+                userId,
+                merchant,
+                description,
+                amount,
+                categoryResolved.category_id,
+              ],
             );
           }
 

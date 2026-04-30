@@ -18,7 +18,7 @@ export const csvImportService = {
       const normalized = normalizeMerchant(row.merchant).key;
 
       // 1) Check merchant memory
-      const memory = getCategoryForMerchant(userId, normalized);
+      const memory = await getCategoryForMerchant(userId, normalized);
 
       let categoryId: number | null = null;
 
@@ -26,7 +26,7 @@ export const csvImportService = {
         categoryId = memory.category_id;
       } else {
         // ⭐ FIXED: resolveCategory correct aangeroepen
-        const resolved = resolveCategory(
+        const resolved = await resolveCategory(
           userId,
           normalized,
           row.description ?? row.merchant,
@@ -36,7 +36,7 @@ export const csvImportService = {
         categoryId = resolved.category_id;
 
         // 4) Memory leren
-        upsertMerchantMemory(userId, normalized, categoryId);
+        await upsertMerchantMemory(userId, normalized, categoryId);
       }
 
       const extracted = {

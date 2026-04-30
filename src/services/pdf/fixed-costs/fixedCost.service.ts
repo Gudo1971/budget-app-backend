@@ -1,18 +1,17 @@
 import { findCategoryIdByName } from "../../categories/category.service";
-import { db } from "../../../lib/db";
+import { pool } from "../../../lib/db";
 
-export function createFixedCost(data: {
+export async function createFixedCost(data: {
   name: string;
   amount: number;
   interval: string;
 }) {
-  const categoryId = findCategoryIdByName(data.name);
+  const categoryId = await findCategoryIdByName(data.name);
 
-  const insert = db
-    .prepare(
-      "INSERT INTO fixed_costs (name, amount, interval, category_id) VALUES (?, ?, ?, ?)",
-    )
-    .run(data.name, data.amount, data.interval, categoryId);
+  const result = await pool.query(
+    "INSERT INTO fixed_costs (name, amount, interval, category_id) VALUES ($1, $2, $3, $4) RETURNING id",
+    [data.name, data.amount, data.interval, categoryId],
+  );
 
-  return insert.lastInsertRowid as number;
+  return result.rows[0].id as number;
 }

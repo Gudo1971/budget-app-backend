@@ -1,7 +1,7 @@
 import { Router } from "express";
 import fs from "fs";
 import path from "path";
-import { db } from "../../lib/db";
+import { pool } from "../../lib/db";
 import { extractReceiptFromImage } from "../../ai/extractors/extractReceiptFromImage";
 import { resolveCategory } from "../../services/categories/resolveCategory";
 import { normalizeMerchant } from "@shared/services/normalizeMerchant";
@@ -24,9 +24,16 @@ router.post("/:id/extract", async (req, res) => {
     const { id } = req.params;
 
     // 1. Receipt ophalen
-    const receipt = db
-      .prepare("SELECT * FROM receipts WHERE id = ? AND user_id = ?")
-      .get(id, USER_ID) as ReceiptRecord | undefined;
+    const receiptResult = await pool.query(
+      `
+      SELECT *
+      FROM receipts
+      WHERE id = $1 AND user_id = $2
+      `,
+      [id, USER_ID],
+    );
+
+    const receipt = receiptResult.rows[0] as ReceiptRecord | undefined;
 
     if (!receipt) {
       return res.status(404).json({ error: "Receipt not found" });
@@ -59,43 +66,43 @@ router.post("/:id/extract", async (req, res) => {
 
     // 6. Beschrijving + bedrag bepalen
     const description = normMerchant.display;
-
     const amount = parsedJson.total ?? 0;
 
     // 7. Categorisatie via resolveCategory (SUGGESTIE)
-    const category = resolveCategory(
+    const category = await resolveCategory(
       USER_ID,
       normMerchant.key,
       description,
       amount,
     );
 
-    // 8. parsedJson verrijken voor opslag + frontend
+    // 8. parsedJson verrijken
     parsedJson.merchant = normMerchant.display;
-    parsedJson.merchant_category = category.category_id; // suggestie
-    parsedJson.category = null; // user kiest zelf
+    parsedJson.merchant_category = category.category_id;
+    parsedJson.category = null;
     parsedJson.subcategory = null;
 
     // 9. Opslaan in DB
-    db.prepare(
+    await pool.query(
       `
       UPDATE receipts
       SET
-        merchant = ?,
-        purchase_date = ?,
-        total = ?,
-        ocrText = ?,
-        aiResult = ?,
+        merchant = $1,
+        purchase_date = $2,
+        total = $3,
+        ocrText = $4,
+        aiResult = $5,
         status = 'processed'
-      WHERE id = ?
-    `,
-    ).run(
-      normMerchant.key,
-      parsedJson.date ?? null,
-      parsedJson.total ?? null,
-      extracted.ocrText ?? null,
-      JSON.stringify(parsedJson),
-      receipt.id,
+      WHERE id = $6
+      `,
+      [
+        normMerchant.key,
+        parsedJson.date ?? null,
+        parsedJson.total ?? null,
+        extracted.ocrText ?? null,
+        JSON.stringify(parsedJson),
+        receipt.id,
+      ],
     );
 
     // 10. Normalized block voor matching v2

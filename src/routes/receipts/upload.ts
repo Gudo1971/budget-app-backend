@@ -1,14 +1,16 @@
 import crypto from "crypto";
 import fs from "fs";
 import { Request, Response } from "express";
-import { db } from "../../lib/db";
+import { pool } from "../../lib/db";
 import { MatchDuplicate } from "../../shared/types/matching";
+
 console.log(">>> SMART UPLOAD ROUTE ACTIVE <<<");
+
 const USER_ID = "demo-user";
 
 type RawDuplicateRow = {
-  receiptId: number;
-  transactionId: number | null;
+  receiptid: number;
+  transactionid: number | null;
   id: number | null;
   amount: number | null;
   date: string | null;
@@ -42,32 +44,33 @@ export default async function smartUploadReceipt(req: Request, res: Response) {
       );
 
       // 1. Receipt opslaan
-      const insert = db.prepare(
+      const insertResult = await pool.query(
         `
         INSERT INTO receipts 
         (filename, original_name, user_id, status, imageHash, transaction_id)
-        VALUES (?, ?, ?, 'processed', ?, ?)
+        VALUES ($1, $2, $3, 'processed', $4, $5)
+        RETURNING id
         `,
+        [
+          `${USER_ID}/${file.filename}`,
+          file.originalname,
+          USER_ID,
+          imageHash,
+          transactionId,
+        ],
       );
 
-      const result = insert.run(
-        `${USER_ID}/${file.filename}`,
-        file.originalname,
-        USER_ID,
-        imageHash,
-        transactionId,
-      );
-
-      const receiptId = result.lastInsertRowid as number;
+      const receiptId = insertResult.rows[0].id;
 
       // 2. Transactie updaten met receipt_id
-      db.prepare(
+      await pool.query(
         `
         UPDATE transactions
-        SET receipt_id = ?
-        WHERE id = ? AND user_id = ?
+        SET receipt_id = $1
+        WHERE id = $2 AND user_id = $3
         `,
-      ).run(receiptId, transactionId, USER_ID);
+        [receiptId, transactionId, USER_ID],
+      );
 
       return res.json({
         action: "linked",
@@ -80,22 +83,23 @@ export default async function smartUploadReceipt(req: Request, res: Response) {
 
     // ⭐ BRANCH 2 — NORMALE SMART UPLOAD FLOW
     // 2. DUPLICATE CHECK
-    const duplicate = db
-      .prepare(
-        `
-        SELECT 
-          r.id AS receiptId,
-          r.transaction_id AS transactionId,
-          t.id AS id,
-          t.amount AS amount,
-          t.transaction_date AS date,
-          t.merchant AS merchant
-        FROM receipts r
-        LEFT JOIN transactions t ON r.transaction_id = t.id
-        WHERE r.imageHash = ? AND r.user_id = ?
-        `,
-      )
-      .get(imageHash, USER_ID) as RawDuplicateRow | undefined;
+    const duplicateResult = await pool.query(
+      `
+      SELECT 
+        r.id AS receiptId,
+        r.transaction_id AS transactionId,
+        t.id AS id,
+        t.amount AS amount,
+        t.transaction_date AS date,
+        t.merchant AS merchant
+      FROM receipts r
+      LEFT JOIN transactions t ON r.transaction_id = t.id
+      WHERE r.imageHash = $1 AND r.user_id = $2
+      `,
+      [imageHash, USER_ID],
+    );
+
+    const duplicate = duplicateResult.rows[0] as RawDuplicateRow | undefined;
 
     if (duplicate) {
       return res.json({
@@ -106,22 +110,17 @@ export default async function smartUploadReceipt(req: Request, res: Response) {
     }
 
     // 3. NIEUWE RECEIPT OPSLAAN
-    const insert = db.prepare(
+    const insertNew = await pool.query(
       `
       INSERT INTO receipts 
       (filename, original_name, user_id, status, imageHash)
-      VALUES (?, ?, ?, 'pending', ?)
+      VALUES ($1, $2, $3, 'pending', $4)
+      RETURNING id
       `,
+      [`${USER_ID}/${file.filename}`, file.originalname, USER_ID, imageHash],
     );
 
-    const result = insert.run(
-      `${USER_ID}/${file.filename}`,
-      file.originalname,
-      USER_ID,
-      imageHash,
-    );
-
-    const receiptId = result.lastInsertRowid as number;
+    const receiptId = insertNew.rows[0].id;
 
     // 4. TERUGSTUREN
     return res.json({

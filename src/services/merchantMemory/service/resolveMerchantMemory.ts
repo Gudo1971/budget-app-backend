@@ -1,8 +1,8 @@
 import { getCategoryForMerchant } from "./merchantMemory.service";
 
-export function resolveMerchantMemory(userId: string, merchant: string) {
+export async function resolveMerchantMemory(userId: string, merchant: string) {
   // Gebruik merchant exact zoals hij binnenkomt
-  const memory = getCategoryForMerchant(userId, merchant);
+  const memory = await getCategoryForMerchant(userId, merchant);
 
   if (!memory) {
     return null;

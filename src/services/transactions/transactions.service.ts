@@ -1,4 +1,4 @@
-import { db } from "../../lib/db";
+import { pool } from "../../lib/db";
 import { normalizeDate } from "./transaction.utils";
 import { normalizeMerchant } from "@shared/services/normalizeMerchant";
 import { resolveCategory } from "../categories/resolveCategory";
@@ -20,7 +20,7 @@ function mapTransaction(row: any) {
     receipt_id: row.receipt_id ?? null,
     category_id: row.category_id ?? null,
     subcategory_id: row.subcategory_id ?? null,
-    recurring: row.recurring === 1,
+    recurring: row.recurring === true || row.recurring === 1,
     receipt: row.receipt_id
       ? {
           url: `http://localhost:3001/uploads/${row.receipt_filename}`,
@@ -35,38 +35,41 @@ function mapTransaction(row: any) {
 }
 
 export const transactionService = {
-  getAll() {
-    const rows = db
-      .prepare(
-        `
-SELECT 
-  t.id,
-  t.receipt_id,
-  t.amount,
-  t.transaction_date,
-  t.merchant,
-  t.description,
-  t.category_id,
-  t.subcategory_id,
-  t.user_id,
-  t.recurring,
-  r.filename AS receipt_filename,
-  r.aiResult AS receipt_ai_result
-FROM transactions t
-LEFT JOIN receipts r ON r.id = t.receipt_id
-ORDER BY t.transaction_date DESC
+  // ------------------------------------------------------------
+  // GET ALL
+  // ------------------------------------------------------------
+  async getAll() {
+    const result = await pool.query(
+      `
+      SELECT 
+        t.id,
+        t.receipt_id,
+        t.amount,
+        t.transaction_date,
+        t.merchant,
+        t.description,
+        t.category_id,
+        t.subcategory_id,
+        t.user_id,
+        t.recurring,
+        r.filename AS receipt_filename,
+        r.aiResult AS receipt_ai_result
+      FROM transactions t
+      LEFT JOIN receipts r ON r.id = t.receipt_id
+      ORDER BY t.transaction_date DESC
       `,
-      )
-      .all();
+    );
 
     return {
       success: true,
-      data: rows.map(mapTransaction),
+      data: result.rows.map(mapTransaction),
       error: null,
     };
   },
 
-  // ⭐ CREATE FLOW (NIEUW)
+  // ------------------------------------------------------------
+  // CREATE
+  // ------------------------------------------------------------
   async create(body: any) {
     console.log(">>> CREATE CALLED WITH:", body);
 
@@ -109,14 +112,15 @@ ORDER BY t.transaction_date DESC
 
     const desc = (description || "").toLowerCase();
 
-    // ⭐ GKB-detectie
+    // ------------------------------------------------------------
+    // INTERNAL TRANSFERS (GKB)
+    // ------------------------------------------------------------
     const isGKB =
       normMerchant.key.includes("gkb") ||
       normMerchant.key.includes("bewind") ||
       normMerchant.key.includes("beheer") ||
       normMerchant.key.includes("reservering");
 
-    // ⭐ Interne verschuivingen → negeren
     const isInternal =
       isGKB &&
       (desc.includes("weekgeld") ||
@@ -137,7 +141,9 @@ ORDER BY t.transaction_date DESC
       };
     }
 
-    // ⭐ Inkomsten vs uitgaven
+    // ------------------------------------------------------------
+    // INCOME vs EXPENSE
+    // ------------------------------------------------------------
     const isIncome =
       desc.includes("uitkering") ||
       desc.includes("toeslag") ||
@@ -150,29 +156,38 @@ ORDER BY t.transaction_date DESC
 
     const normalizedAmount = isIncome ? absAmount : -absAmount;
 
-    // ⭐ Duplicate check
-    const existing = db
-      .prepare(
-        `
-      SELECT id FROM transactions
-      WHERE DATE(transaction_date) = DATE(?)
-        AND amount = ?
-        AND merchant = ?
-        AND user_id = ?
-    `,
-      )
-      .get(
+    // ------------------------------------------------------------
+    // DUPLICATE CHECK
+    // ------------------------------------------------------------
+    const duplicateResult = await pool.query(
+      `
+      SELECT id 
+      FROM transactions
+      WHERE DATE(transaction_date) = DATE($1)
+        AND amount = $2
+        AND merchant = $3
+        AND user_id = $4
+      `,
+      [
         normalizedDate,
         normalizedAmount,
         normMerchant.key,
         userId || "demo-user",
-      ) as { id: number } | null;
+      ],
+    );
+
+    const existing = duplicateResult.rows[0];
 
     if (existing?.id) {
       if (receiptId) {
-        db.prepare(
-          `UPDATE transactions SET receipt_id = ? WHERE id = ? AND user_id = ?`,
-        ).run(receiptId, existing.id, userId || "demo-user");
+        await pool.query(
+          `
+          UPDATE transactions
+          SET receipt_id = $1
+          WHERE id = $2 AND user_id = $3
+          `,
+          [receiptId, existing.id, userId || "demo-user"],
+        );
       }
 
       return {
@@ -185,13 +200,14 @@ ORDER BY t.transaction_date DESC
         error: null,
       };
     }
-    // ⭐ CATEGORISATIE ENGINE
+
+    // ------------------------------------------------------------
+    // CATEGORY RESOLUTION
+    // ------------------------------------------------------------
     let categoryId = body.category_id ?? null;
 
-    // 1) Als CSV of manual input een category_id geeft → gebruik die
     if (!categoryId) {
-      // 2) Merchant memory check
-      const memory = getCategoryForMerchant(
+      const memory = await getCategoryForMerchant(
         userId || "demo-user",
         normMerchant.key,
       );
@@ -199,8 +215,7 @@ ORDER BY t.transaction_date DESC
       if (memory) {
         categoryId = memory.category_id;
       } else {
-        // 3) Fallback naar resolveCategory
-        const categoryResult = resolveCategory(
+        const categoryResult = await resolveCategory(
           userId || "demo-user",
           normMerchant.key,
           description ?? normMerchant.display,
@@ -211,11 +226,20 @@ ORDER BY t.transaction_date DESC
       }
     }
 
-    // 4) Merchant memory leren
-    upsertMerchantMemory(userId || "demo-user", normMerchant.key, categoryId);
+    // ------------------------------------------------------------
+    // MERCHANT MEMORY UPSERT
+    // ------------------------------------------------------------
+    await upsertMerchantMemory(
+      userId || "demo-user",
+      normMerchant.key,
+      categoryId,
+    );
 
-    // ⭐ Insert
-    const stmt = db.prepare(`
+    // ------------------------------------------------------------
+    // INSERT TRANSACTION
+    // ------------------------------------------------------------
+    const insertResult = await pool.query(
+      `
       INSERT INTO transactions (
         receipt_id,
         amount,
@@ -227,36 +251,26 @@ ORDER BY t.transaction_date DESC
         user_id,
         recurring
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const result = stmt.run(
-      receiptId ?? null,
-      normalizedAmount,
-      normalizedDate,
-      normMerchant.key,
-      description ?? normMerchant.display,
-      categoryId,
-      null,
-      userId || "demo-user",
-      0,
+      VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, FALSE)
+      RETURNING id
+      `,
+      [
+        receiptId ?? null,
+        normalizedAmount,
+        normalizedDate,
+        normMerchant.key,
+        description ?? normMerchant.display,
+        categoryId,
+        userId || "demo-user",
+      ],
     );
 
-    // ⭐ Merchant memory bijwerken
-    if (categoryId) {
-      upsertMerchantMemory(userId || "demo-user", normMerchant.key, categoryId);
-    }
-    console.log(">>> MERCHANT MEMORY UPSERT:", {
-      user: userId || "demo-user",
-      merchant: normMerchant.key,
-      categoryId,
-    });
-    db.pragma("wal_checkpoint(TRUNCATE)");
+    const newId = insertResult.rows[0].id;
 
     return {
       success: true,
       data: {
-        id: result.lastInsertRowid,
+        id: newId,
         receipt_id: receiptId ?? null,
         amount: normalizedAmount,
         date: normalizedDate,
@@ -274,6 +288,9 @@ ORDER BY t.transaction_date DESC
     };
   },
 
+  // ------------------------------------------------------------
+  // FILTER (repository is al Postgres)
+  // ------------------------------------------------------------
   async filter(params: any) {
     return transactionRepository.filter(params);
   },

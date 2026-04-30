@@ -1,5 +1,5 @@
 import fs from "fs";
-import { db } from "../lib/db";
+import { pool } from "../lib/db";
 import { generateColor } from "../utils/generateColor";
 
 export async function importCategoriesCsv(filePath: string) {
@@ -7,11 +7,6 @@ export async function importCategoriesCsv(filePath: string) {
 
   // Skip header
   rows.shift();
-
-  const stmt = db.prepare(`
-    INSERT INTO categories (id, user_id, name, type, color)
-    VALUES (?, ?, ?, ?, ?)
-  `);
 
   for (const row of rows) {
     if (!row.trim()) continue; // ⭐ skip lege regels
@@ -30,7 +25,13 @@ export async function importCategoriesCsv(filePath: string) {
       continue; // ⭐ skip regels met lege velden
     }
 
-    stmt.run(Number(id), userId, name, type, generateColor());
+    await pool.query(
+      `
+      INSERT INTO categories (id, user_id, name, type, color)
+      VALUES ($1, $2, $3, $4, $5)
+      `,
+      [Number(id), userId, name, type, generateColor()],
+    );
   }
 
   console.log("✅ Categories imported with colors");

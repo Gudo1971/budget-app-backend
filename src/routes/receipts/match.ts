@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { db } from "../../lib/db";
+import { pool } from "../../lib/db";
 import { matchingService } from "../../services/matching/matching.service";
-import { MatchResult, MatchInput } from "@shared/types/matching";
+import { MatchResult, MatchInput } from "../../shared/types/matching";
 import { normalizeMerchant } from "@shared/services/normalizeMerchant";
 const router = Router();
 const USER_ID = "demo-user";
@@ -20,15 +20,16 @@ router.get("/:id/match", async (req, res) => {
 
   try {
     // 1. RECEIPT OPHALEN
-    const receipt = db
-      .prepare(
-        `
-        SELECT id, aiResult
-        FROM receipts
-        WHERE id = ? AND user_id = ?
-        `,
-      )
-      .get(receiptId, USER_ID) as ReceiptRecord | undefined;
+    const receiptResult = await pool.query(
+      `
+      SELECT id, aiResult
+      FROM receipts
+      WHERE id = $1 AND user_id = $2
+      `,
+      [receiptId, USER_ID],
+    );
+
+    const receipt = receiptResult.rows[0] as ReceiptRecord | undefined;
 
     if (!receipt) {
       return res.status(404).json({ error: "Receipt not found" });
@@ -85,7 +86,7 @@ router.get("/:id/match", async (req, res) => {
       merchant_raw: normMerchant.display, // optioneel maar handig
     };
 
-    const matchResult: MatchResult = matchingService.findMatch(
+    const matchResult: MatchResult = await matchingService.findMatch(
       matchInput,
       USER_ID,
     );

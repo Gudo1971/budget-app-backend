@@ -2,12 +2,13 @@ import { Router, Request, Response } from "express";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
-import { db } from "../../lib/db";
+import { pool } from "../../lib/db";
 
 import smartUploadReceipt from "./upload";
 import confirmLinkRoute from "./confirmLink";
 import { matchingService } from "../../services/matching/matching.service";
 import { normalizeMerchant } from "@shared/services/normalizeMerchant";
+
 const router = Router();
 const USER_ID = "demo-user";
 
@@ -40,29 +41,29 @@ type ReceiptRecord = {
 // ------------------------------------------------------------
 // GET /receipts → alle bonnen
 // ------------------------------------------------------------
-router.get("/", (req: Request, res: Response) => {
+router.get("/", async (req: Request, res: Response) => {
   try {
-    const receipts = db
-      .prepare(
-        `
-        SELECT 
-          id, 
-          filename, 
-          original_name, 
-          uploaded_at, 
-          status,
-          transaction_id,
-          ocrText, 
-          aiResult 
-        FROM receipts 
-        WHERE user_id = ? 
-        ORDER BY uploaded_at DESC
-        `,
-      )
-      .all(USER_ID) as ReceiptRecord[];
+    const result = await pool.query(
+      `
+      SELECT 
+        id, 
+        filename, 
+        original_name, 
+        uploaded_at, 
+        status,
+        transaction_id,
+        ocrText, 
+        aiResult 
+      FROM receipts 
+      WHERE user_id = $1 
+      ORDER BY uploaded_at DESC
+      `,
+      [USER_ID],
+    );
 
-    res.json(receipts);
+    res.json(result.rows as ReceiptRecord[]);
   } catch (err) {
+    console.error("GET /receipts error:", err);
     res.status(500).json({ error: "Failed to fetch receipts" });
   }
 });
@@ -70,11 +71,11 @@ router.get("/", (req: Request, res: Response) => {
 // ------------------------------------------------------------
 // GET /receipts/:id → één bon
 // ------------------------------------------------------------
-router.get("/:id", (req: Request, res: Response) => {
+router.get("/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  const receipt = db
-    .prepare(
+  try {
+    const result = await pool.query(
       `
       SELECT 
         id, 
@@ -86,24 +87,30 @@ router.get("/:id", (req: Request, res: Response) => {
         ocrText, 
         aiResult 
       FROM receipts 
-      WHERE id = ? AND user_id = ?
+      WHERE id = $1 AND user_id = $2
       `,
-    )
-    .get(id, USER_ID) as ReceiptRecord | undefined;
+      [id, USER_ID],
+    );
 
-  if (!receipt) return res.status(404).json({ error: "Receipt not found" });
+    const receipt = result.rows[0] as ReceiptRecord | undefined;
 
-  res.json(receipt);
+    if (!receipt) return res.status(404).json({ error: "Receipt not found" });
+
+    res.json(receipt);
+  } catch (err) {
+    console.error("GET /receipts/:id error:", err);
+    res.status(500).json({ error: "Failed to fetch receipt" });
+  }
 });
 
 // ------------------------------------------------------------
 // GET /receipts/:id/file → download
 // ------------------------------------------------------------
-router.get("/:id/file", (req: Request, res: Response) => {
+router.get("/:id/file", async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  const receipt = db
-    .prepare(
+  try {
+    const result = await pool.query(
       `
       SELECT 
         id, 
@@ -115,24 +122,30 @@ router.get("/:id/file", (req: Request, res: Response) => {
         ocrText, 
         aiResult 
       FROM receipts 
-      WHERE id = ? AND user_id = ?
+      WHERE id = $1 AND user_id = $2
       `,
-    )
-    .get(id, USER_ID) as ReceiptRecord | undefined;
+      [id, USER_ID],
+    );
 
-  if (!receipt) return res.status(404).json({ error: "Receipt not found" });
+    const receipt = result.rows[0] as ReceiptRecord | undefined;
 
-  const filePath = path.join(userUploadDir, receipt.filename);
-  if (!fs.existsSync(filePath))
-    return res.status(404).json({ error: "File not found" });
+    if (!receipt) return res.status(404).json({ error: "Receipt not found" });
 
-  res.setHeader(
-    "Content-Disposition",
-    `attachment; filename="${receipt.original_name}"`,
-  );
-  res.setHeader("Content-Type", "application/octet-stream");
+    const filePath = path.join(userUploadDir, receipt.filename);
+    if (!fs.existsSync(filePath))
+      return res.status(404).json({ error: "File not found" });
 
-  res.sendFile(filePath);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${receipt.original_name}"`,
+    );
+    res.setHeader("Content-Type", "application/octet-stream");
+
+    res.sendFile(filePath);
+  } catch (err) {
+    console.error("GET /receipts/:id/file error:", err);
+    res.status(500).json({ error: "Failed to fetch receipt file" });
+  }
 });
 
 // ------------------------------------------------------------
@@ -141,26 +154,25 @@ router.get("/:id/file", (req: Request, res: Response) => {
 router.post(
   "/upload-bulk",
   upload.array("files", 20),
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     const files = req.files as Express.Multer.File[];
 
     if (!files || files.length === 0)
       return res.status(400).json({ error: "No files uploaded" });
 
-    const stmt = db.prepare(
-      `
-      INSERT INTO receipts 
-      (filename, original_name, user_id, status) 
-      VALUES (?, ?, ?, 'pending')
-      `,
-    );
+    try {
+      for (const file of files) {
+        await pool.query(
+          `
+          INSERT INTO receipts 
+          (filename, original_name, user_id, status) 
+          VALUES ($1, $2, $3, 'pending')
+          `,
+          [file.filename, file.originalname, USER_ID],
+        );
+      }
 
-    for (const file of files) {
-      stmt.run(file.filename, file.originalname, USER_ID);
-    }
-
-    const receipts = db
-      .prepare(
+      const result = await pool.query(
         `
         SELECT 
           id, 
@@ -172,13 +184,20 @@ router.post(
           ocrText, 
           aiResult 
         FROM receipts 
-        WHERE user_id = ? 
+        WHERE user_id = $1 
         ORDER BY uploaded_at DESC
         `,
-      )
-      .all(USER_ID) as ReceiptRecord[];
+        [USER_ID],
+      );
 
-    res.json({ message: "Receipts uploaded", receipts });
+      res.json({
+        message: "Receipts uploaded",
+        receipts: result.rows as ReceiptRecord[],
+      });
+    } catch (err) {
+      console.error("POST /receipts/upload-bulk error:", err);
+      res.status(500).json({ error: "Failed to upload receipts" });
+    }
   },
 );
 
@@ -190,11 +209,11 @@ router.post("/upload/smart", upload.single("file"), smartUploadReceipt);
 // ------------------------------------------------------------
 // DELETE /receipts/:id
 // ------------------------------------------------------------
-router.delete("/:id", (req: Request, res: Response) => {
+router.delete("/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  const receipt = db
-    .prepare(
+  try {
+    const result = await pool.query(
       `
       SELECT 
         id, 
@@ -206,22 +225,31 @@ router.delete("/:id", (req: Request, res: Response) => {
         ocrText, 
         aiResult 
       FROM receipts 
-      WHERE id = ? AND user_id = ?
+      WHERE id = $1 AND user_id = $2
       `,
-    )
-    .get(id, USER_ID) as ReceiptRecord | undefined;
+      [id, USER_ID],
+    );
 
-  if (!receipt) return res.status(404).json({ error: "Receipt not found" });
+    const receipt = result.rows[0] as ReceiptRecord | undefined;
 
-  const filePath = path.join(userUploadDir, receipt.filename);
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    if (!receipt) return res.status(404).json({ error: "Receipt not found" });
 
-  db.prepare("DELETE FROM receipts WHERE id = ? AND user_id = ?").run(
-    id,
-    USER_ID,
-  );
+    const filePath = path.join(userUploadDir, receipt.filename);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
-  res.json({ message: "Receipt deleted" });
+    await pool.query(
+      `
+      DELETE FROM receipts 
+      WHERE id = $1 AND user_id = $2
+      `,
+      [id, USER_ID],
+    );
+
+    res.json({ message: "Receipt deleted" });
+  } catch (err) {
+    console.error("DELETE /receipts/:id error:", err);
+    res.status(500).json({ error: "Failed to delete receipt" });
+  }
 });
 
 // ------------------------------------------------------------
@@ -235,8 +263,8 @@ router.use("/", confirmLinkRoute);
 router.get("/:id/match", async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  const receipt = db
-    .prepare(
+  try {
+    const result = await pool.query(
       `
       SELECT 
         id, 
@@ -248,50 +276,52 @@ router.get("/:id/match", async (req: Request, res: Response) => {
         ocrText, 
         aiResult 
       FROM receipts 
-      WHERE id = ? AND user_id = ?
+      WHERE id = $1 AND user_id = $2
       `,
-    )
-    .get(id, USER_ID) as ReceiptRecord | undefined;
+      [id, USER_ID],
+    );
 
-  if (!receipt) {
-    return res.status(404).json({ error: "Receipt not found" });
+    const receipt = result.rows[0] as ReceiptRecord | undefined;
+
+    if (!receipt) {
+      return res.status(404).json({ error: "Receipt not found" });
+    }
+
+    let extracted: any;
+    try {
+      extracted = JSON.parse(receipt.aiResult ?? "{}");
+    } catch {
+      extracted = {};
+    }
+
+    if (!extracted.total || !extracted.merchant) {
+      return res.status(400).json({
+        error: "Receipt has no merchant or total. AI analysis may have failed.",
+      });
+    }
+
+    if (!extracted.date) {
+      extracted.date = new Date().toISOString().split("T")[0];
+    }
+
+    const normMerchant = normalizeMerchant(extracted.merchant);
+
+    const matchResult = await matchingService.findMatch(
+      {
+        receiptId: receipt.id,
+        amount: extracted.total,
+        date: extracted.date,
+        merchant: normMerchant.key,
+        merchant_raw: normMerchant.display,
+      },
+      USER_ID,
+    );
+
+    return res.json(matchResult);
+  } catch (err) {
+    console.error("GET /receipts/:id/match error:", err);
+    res.status(500).json({ error: "Failed to match receipt" });
   }
-
-  let extracted;
-  try {
-    extracted = JSON.parse(receipt.aiResult ?? "{}");
-  } catch {
-    extracted = {};
-  }
-
-  // Validatie
-  if (!extracted.total || !extracted.merchant) {
-    return res.status(400).json({
-      error: "Receipt has no merchant or total. AI analysis may have failed.",
-    });
-  }
-
-  // Als geen datum → vandaag
-  if (!extracted.date) {
-    extracted.date = new Date().toISOString().split("T")[0];
-  }
-
-  // ⭐ Normaliseer merchant (CRUCIAAL)
-  const normMerchant = normalizeMerchant(extracted.merchant);
-
-  // ⭐ Matching engine v2
-  const matchResult = matchingService.findMatch(
-    {
-      receiptId: receipt.id,
-      amount: extracted.total,
-      date: extracted.date,
-      merchant: normMerchant.key, // ✔ string
-      merchant_raw: normMerchant.display, // ✔ optioneel maar handig
-    },
-    USER_ID,
-  );
-
-  return res.json(matchResult);
 });
 
 export default router;

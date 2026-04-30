@@ -3,6 +3,11 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 
+// ✅ Future-proof: Environment en database validatie
+import { env } from "./lib/env";
+import { checkDatabaseHealth, pool } from "./lib/db";
+import { runMigrations } from "./lib/migrations";
+
 import { errorHandler } from "./middleware/errorHandler";
 import { requestLogger } from "./middleware/requestLogger";
 
@@ -67,52 +72,98 @@ async function retrainLowConfidence(PORT: number) {
   }
 }
 
-console.log("🔥 INDEX STARTED");
+console.log("🔥 Starting Budget App Backend...");
 
-const app = express();
+// ✅ Future-proof: Valideer database connectie voor startup
+async function startServer() {
+  // 1. Check database health
+  console.log("🔍 Checking database connection...");
+  const isHealthy = await checkDatabaseHealth();
+  if (!isHealthy) {
+    console.error("❌ Database connection failed. Exiting...");
+    process.exit(1);
+  }
+  console.log("✅ Database connection successful");
 
-app.use(
-  cors({
-    origin: ["http://localhost:5173", "http://localhost:5174"],
-    credentials: true,
-  }),
-);
-app.use(requestLogger);
+  // 2. Run migrations
+  console.log("🔄 Running database migrations...");
+  try {
+    await runMigrations();
+  } catch (error) {
+    console.error("❌ Migration failed:", error);
+    process.exit(1);
+  }
 
-app.use("/api/ai", aiPdfExtractRouter);
+  // 3. Start Express server
+  const app = express();
 
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ limit: "10mb", extended: true }));
+  app.use(
+    cors({
+      origin: ["http://localhost:5173", "http://localhost:5174"],
+      credentials: true,
+    }),
+  );
+  app.use(requestLogger);
 
-// ⭐ API ROUTES
+  app.use("/api/ai", aiPdfExtractRouter);
 
-// ⭐ Serve uploaded receipt images
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+  app.use(express.json({ limit: "10mb" }));
+  app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
-app.use("/api/transactions", transactionsRouter);
-app.use("/api/categories", categoriesRouter);
-app.use("/api/budget", budgetRouter);
-app.use("/api/fixed-costs", fixedCostsRouter);
-app.use("/api/savings-goals", savingsGoalsRouter);
-app.use("/api/budget-categories", budgetCategoriesRouter);
-app.use("/api/sub-budgets", subBudgetRouter);
-app.use("/api/split-transactions", splitTransactionsRouter);
-app.use("/api/receipts", receiptsRouter);
-app.use("/api/items", itemRoutes);
-app.use("/api/merchant-categories", merchantCategoryRoute);
-app.use("/api/receipts", archiveRoutes);
-app.use("/debug", debugRouter);
-app.post("/api/receipts/upload", smartUploadReceipt);
-app.use("/api/summary", summaryRouter);
-app.use("/api/month", monthRouter);
-app.use(errorHandler);
+  // ⭐ API ROUTES
 
-const PORT = process.env.PORT || 3001;
+  // ⭐ Serve uploaded receipt images
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log("Using DB file:", path.resolve("budget.db"));
+  // Health check endpoint
+  app.get("/health", async (req, res) => {
+    const dbHealthy = await checkDatabaseHealth();
+    res.status(dbHealthy ? 200 : 503).json({
+      status: dbHealthy ? "healthy" : "unhealthy",
+      database: dbHealthy ? "connected" : "disconnected",
+      timestamp: new Date().toISOString(),
+    });
+  });
 
-  // ⭐ Start cronjob at 03:00 every night
-  runAt(3, 0, () => retrainLowConfidence(Number(PORT)));
+  app.use("/api/transactions", transactionsRouter);
+  app.use("/api/categories", categoriesRouter);
+  app.use("/api/budget", budgetRouter);
+  app.use("/api/fixed-costs", fixedCostsRouter);
+  app.use("/api/savings-goals", savingsGoalsRouter);
+  app.use("/api/budget-categories", budgetCategoriesRouter);
+  app.use("/api/sub-budgets", subBudgetRouter);
+  app.use("/api/split-transactions", splitTransactionsRouter);
+  app.use("/api/receipts", receiptsRouter);
+  app.use("/api/items", itemRoutes);
+  app.use("/api/merchant-categories", merchantCategoryRoute);
+  app.use("/api/receipts", archiveRoutes);
+  app.use("/debug", debugRouter);
+  app.post("/api/receipts/upload", smartUploadReceipt);
+  app.use("/api/summary", summaryRouter);
+  app.use("/api/month", monthRouter);
+  app.use(errorHandler);
+
+  const PORT = env.PORT;
+
+  app.listen(PORT, () => {
+    console.log("✅ Server running on http://localhost:" + PORT);
+    console.log("✅ Database: PostgreSQL (pooled connections)");
+    console.log("✅ Environment:", env.NODE_ENV);
+
+    // ⭐ Start cronjob at 03:00 every night
+    runAt(3, 0, () => retrainLowConfidence(Number(PORT)));
+  });
+
+  // ✅ Future-proof: Graceful shutdown
+  process.on("SIGTERM", async () => {
+    console.log("🛑 SIGTERM received, closing server gracefully...");
+    await pool.end();
+    process.exit(0);
+  });
+}
+
+// Start de server
+startServer().catch((error) => {
+  console.error("❌ Failed to start server:", error);
+  process.exit(1);
 });

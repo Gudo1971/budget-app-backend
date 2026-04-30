@@ -1,46 +1,46 @@
 import { Router } from "express";
-import { db } from "../lib/db";
+import { pool } from "../lib/db";
 
 const router = Router();
 
 // MARKERS voor MonthSelector
-router.get("/:month/markers", (req, res) => {
+router.get("/:month/markers", async (req, res) => {
   try {
     const { month } = req.params;
 
     // 1. Heeft deze maand een budget?
-    const hasBudget = !!db
-      .prepare(
-        `
-        SELECT 1 FROM budgets
-        WHERE month = ?
-        LIMIT 1
+    const budgetResult = await pool.query(
+      `
+      SELECT 1 FROM budgets
+      WHERE month = $1
+      LIMIT 1
       `,
-      )
-      .get(month);
+      [month],
+    );
+    const hasBudget = budgetResult.rows.length > 0;
 
     // 2. Heeft deze maand transacties?
-    const hasTransactions = !!db
-      .prepare(
-        `
-        SELECT 1 FROM transactions
-        WHERE transaction_date LIKE ?
-        LIMIT 1
+    const transactionsResult = await pool.query(
+      `
+      SELECT 1 FROM transactions
+      WHERE transaction_date::text LIKE $1
+      LIMIT 1
       `,
-      )
-      .get(`${month}%`);
+      [`${month}%`],
+    );
+    const hasTransactions = transactionsResult.rows.length > 0;
 
     // 3. Heeft deze maand income? (positieve bedragen)
-    const hasIncome = !!db
-      .prepare(
-        `
-        SELECT 1 FROM transactions
-        WHERE amount > 0
-        AND transaction_date LIKE ?
-        LIMIT 1
+    const incomeResult = await pool.query(
+      `
+      SELECT 1 FROM transactions
+      WHERE amount > 0
+      AND transaction_date::text LIKE $1
+      LIMIT 1
       `,
-      )
-      .get(`${month}%`);
+      [`${month}%`],
+    );
+    const hasIncome = incomeResult.rows.length > 0;
 
     res.json({
       hasBudget,

@@ -1,55 +1,63 @@
-import { db } from "../../../lib/db";
+import { pool } from "../../../lib/db";
 import { normalizeMerchant } from "@shared/services/normalizeMerchant";
 
-export function getCategoryForMerchant(
+export async function getCategoryForMerchant(
   userId: string,
   merchant: string,
-): { category_id: number; confidence: number } | null {
-  const norm = normalizeMerchant(merchant).key; // FIXED
+): Promise<{ category_id: number; confidence: number } | null> {
+  const norm = normalizeMerchant(merchant).key;
 
-  const row = db
-    .prepare(
-      `
-      SELECT category_id, confidence
-      FROM merchant_memory
-      WHERE user_id = ?
-        AND merchant = ?
+  const result = await pool.query(
+    `
+    SELECT category_id, confidence
+    FROM merchant_memory
+    WHERE user_id = $1
+      AND merchant = $2
     `,
-    )
-    .get(userId, norm) as { category_id: number; confidence: number } | null;
+    [userId, norm],
+  );
 
-  return row ?? null;
+  return result.rows[0] ?? null;
 }
 
-export function upsertMerchantMemory(
+export async function upsertMerchantMemory(
   userId: string,
   merchant: string,
   categoryId: number,
 ) {
-  const norm = normalizeMerchant(merchant).key; // FIXED
+  const norm = normalizeMerchant(merchant).key;
 
-  const existing = db
-    .prepare(
-      `
-      SELECT category_id, confidence
-      FROM merchant_memory
-      WHERE user_id = ?
-        AND merchant = ?
+  // 1. Check existing
+  const existingResult = await pool.query(
+    `
+    SELECT category_id, confidence
+    FROM merchant_memory
+    WHERE user_id = $1
+      AND merchant = $2
     `,
-    )
-    .get(userId, norm) as { category_id: number; confidence: number } | null;
+    [userId, norm],
+  );
 
+  const existing = existingResult.rows[0] as
+    | { category_id: number; confidence: number }
+    | undefined;
+
+  // 2. Insert if not exists
   if (!existing) {
-    db.prepare(
+    await pool.query(
       `
       INSERT INTO merchant_memory (user_id, merchant, category_id, confidence)
-      VALUES (?, ?, ?, ?)
-    `,
-    ).run(userId, norm, categoryId, 1.0);
-
+      VALUES ($1, $2, $3, 1.0)
+      ON CONFLICT (user_id, merchant)
+      DO UPDATE SET category_id = EXCLUDED.category_id,
+                    confidence = EXCLUDED.confidence
+      `,
+      [userId, norm, categoryId],
+    );
     return;
   }
 
+  // 3. Update confidence
   let newConfidence = existing.confidence;
 
   if (existing.category_id === categoryId) {
@@ -58,11 +66,14 @@ export function upsertMerchantMemory(
     newConfidence = Math.max(0.0, existing.confidence - 0.3);
   }
 
-  db.prepare(
+  await pool.query(
     `
     UPDATE merchant_memory
-    SET category_id = ?, confidence = ?
-    WHERE user_id = ? AND merchant = ?
-  `,
-  ).run(categoryId, newConfidence, userId, norm);
+    SET category_id = $1,
+        confidence = $2
+    WHERE user_id = $3
+      AND merchant = $4
+    `,
+    [categoryId, newConfidence, userId, norm],
+  );
 }

@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { db } from "../lib/db";
+import { pool } from "../lib/db";
 
 const router = Router();
 
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   const { userId = "demo-user", from, to } = req.query;
 
   if (!from || !to) {
@@ -15,29 +15,27 @@ router.get("/", (req, res) => {
   }
 
   try {
-    const rows = db
-      .prepare(
-        `
+    const result = await pool.query(
+      `
       SELECT 
-  t.category_id,
-  COALESCE(c.name, 'Onbekend') AS name,
-  SUM(ABS(t.amount)) AS total
-FROM transactions t
-LEFT JOIN categories c ON c.id = t.category_id
-WHERE t.user_id = ?
-  AND t.transaction_date >= ?
-  AND t.transaction_date <= ?
-  AND t.amount < 0
-GROUP BY t.category_id
-ORDER BY total ASC
-
-    `,
-      )
-      .all(userId, from, to);
+        t.category_id,
+        COALESCE(c.name, 'Onbekend') AS name,
+        SUM(ABS(t.amount)) AS total
+      FROM transactions t
+      LEFT JOIN categories c ON c.id = t.category_id
+      WHERE t.user_id = $1
+        AND t.transaction_date >= $2
+        AND t.transaction_date <= $3
+        AND t.amount < 0
+      GROUP BY t.category_id, c.name
+      ORDER BY total ASC
+      `,
+      [userId, from, to],
+    );
 
     res.json({
       success: true,
-      data: rows,
+      data: result.rows,
       error: null,
     });
   } catch (err) {

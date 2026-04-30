@@ -98,8 +98,8 @@ router.post("/", async (req, res) => {
     // 1. Merchant memory lookup
     const merchantResolved = await resolveMerchantMemory(userId, merchant);
 
-    // 2. Category resolution
-    const categoryResolved = resolveCategory(
+    // 2. Category resolution (ASYNC!)
+    const categoryResolved = await resolveCategory(
       userId,
       merchant,
       description,

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { openai } from "../ai/engine/client";
 import { Router } from "express";
-import { db } from "../lib/db";
+import { pool } from "../lib/db";
 import type { Transaction } from "../shared/types/Transaction";
 
 const router = Router();
@@ -21,9 +21,12 @@ router.post("/ai", async (req, res) => {
       return res.status(400).json({ error: "Invalid payload" });
     }
 
-    const transaction = db
-      .prepare(`SELECT * FROM transactions WHERE id = ?`)
-      .get(transaction_id) as Transaction;
+    const result = await pool.query(
+      `SELECT * FROM transactions WHERE id = $1`,
+      [transaction_id],
+    );
+
+    const transaction = result.rows[0] as Transaction | undefined;
 
     if (!transaction) {
       return res.status(404).json({ error: "Transaction not found" });

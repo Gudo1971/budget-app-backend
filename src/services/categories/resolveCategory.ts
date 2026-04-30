@@ -4,7 +4,7 @@ import {
   upsertMerchantMemory,
 } from "../merchantMemory/service/merchantMemory.service";
 
-export function resolveCategory(
+export async function resolveCategory(
   userId: string,
   merchant: string,
   description: string,
@@ -13,8 +13,9 @@ export function resolveCategory(
   const merchantKey = merchant.toLowerCase();
   const desc = description.toLowerCase();
 
-  // 1. Merchant memory
-  const memory = getCategoryForMerchant(userId, merchantKey);
+  // 1. Merchant memory (ASYNC!)
+  const memory = await getCategoryForMerchant(userId, merchantKey);
+
   if (memory) {
     return {
       category_id: memory.category_id,
@@ -26,7 +27,7 @@ export function resolveCategory(
   // 2. Keyword matching (merchant first)
   for (const [keyword, categoryId] of Object.entries(CATEGORY_MAP)) {
     if (merchantKey.includes(keyword)) {
-      upsertMerchantMemory(userId, merchantKey, categoryId);
+      await upsertMerchantMemory(userId, merchantKey, categoryId);
       return {
         category_id: categoryId,
         confidence: 0.6,
@@ -38,7 +39,7 @@ export function resolveCategory(
   // 3. Keyword matching (description)
   for (const [keyword, categoryId] of Object.entries(CATEGORY_MAP)) {
     if (desc.includes(keyword)) {
-      upsertMerchantMemory(userId, merchantKey, categoryId);
+      await upsertMerchantMemory(userId, merchantKey, categoryId);
       return {
         category_id: categoryId,
         confidence: 0.6,

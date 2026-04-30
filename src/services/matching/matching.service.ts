@@ -1,4 +1,4 @@
-import { db } from "../../lib/db";
+import { pool } from "../../lib/db";
 import { similarity } from "./string.utils";
 import { dateRange } from "./date.utils";
 import { amountCloseEnough } from "./amount.utils";
@@ -9,10 +9,10 @@ import {
   MatchDuplicate,
   MatchAiResult,
   MatchCandidate,
-} from "@shared/types/matching";
+} from "../../shared/types/matching";
 
 export const matchingService = {
-  findMatch(input: MatchInput, userId: string): MatchResult {
+  async findMatch(input: MatchInput, userId: string): Promise<MatchResult> {
     const { receiptId, amount, date, merchant, transaction_date } = input;
 
     // ------------------------------------------------------------
@@ -39,24 +39,20 @@ export const matchingService = {
     // ------------------------------------------------------------
     // 1. DUPLICATE CHECK (exact match)
     // ------------------------------------------------------------
-    const duplicate = db
-      .prepare(
-        `
-        SELECT id, amount, transaction_date AS date, merchant
-        FROM transactions
-        WHERE ABS(amount) = ?
-          AND DATE(transaction_date) = DATE(?)
-          AND merchant = ?
-          AND user_id = ?
-          AND receipt_id IS NULL
+    const duplicateResult = await pool.query(
+      `
+      SELECT id, amount, transaction_date AS date, merchant
+      FROM transactions
+      WHERE ABS(amount) = $1
+        AND DATE(transaction_date) = DATE($2)
+        AND merchant = $3
+        AND user_id = $4
+        AND receipt_id IS NULL
       `,
-      )
-      .get(
-        normalizedAmount,
-        baseDate,
-        normMerchant.key, // FIXED
-        userId,
-      ) as MatchDuplicate | null;
+      [normalizedAmount, baseDate, normMerchant.key, userId],
+    );
+
+    const duplicate = duplicateResult.rows[0] as MatchDuplicate | undefined;
 
     if (duplicate) {
       console.log("🔁 [MATCH v2] Exact duplicate found:", duplicate);
@@ -75,21 +71,25 @@ export const matchingService = {
     // ------------------------------------------------------------
     const dates = dateRange(baseDate, 2);
 
-    const rows = db
-      .prepare(
-        `
-        SELECT 
-          id,
-          amount,
-          transaction_date AS date,
-          merchant
-        FROM transactions
-        WHERE DATE(transaction_date) IN (${dates.map(() => "?").join(",")})
-          AND user_id = ?
-          AND receipt_id IS NULL
+    // Build placeholders for dates ($1, $2, $3...)
+    const datePlaceholders = dates.map((_, i) => `$${i + 1}`).join(",");
+
+    const rowsResult = await pool.query(
+      `
+      SELECT 
+        id,
+        amount,
+        transaction_date AS date,
+        merchant
+      FROM transactions
+      WHERE DATE(transaction_date) IN (${datePlaceholders})
+        AND user_id = $${dates.length + 1}
+        AND receipt_id IS NULL
       `,
-      )
-      .all(...dates, userId) as Array<{
+      [...dates, userId],
+    );
+
+    const rows = rowsResult.rows as Array<{
       id: number;
       amount: number;
       date: string;

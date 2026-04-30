@@ -1,9 +1,14 @@
-import { db } from "../../lib/db";
+import { pool } from "../../lib/db";
 
-export function findCategoryIdByName(name: string): number | null {
-  const existing = db
-    .prepare("SELECT id FROM categories WHERE LOWER(name) = LOWER(?)")
-    .get(name) as { id: number } | undefined;
+export async function findCategoryIdByName(
+  name: string,
+): Promise<number | null> {
+  const result = await pool.query(
+    "SELECT id FROM categories WHERE LOWER(name) = LOWER($1)",
+    [name],
+  );
+
+  const existing = result.rows[0] as { id: number } | undefined;
 
   return existing?.id ?? null;
 }
