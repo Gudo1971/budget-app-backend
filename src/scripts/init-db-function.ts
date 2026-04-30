@@ -150,6 +150,17 @@ export function initDatabase() {
       deadline TEXT,
       user_id TEXT NOT NULL
     );
+ -- ============================
+    -- SAVINGS 
+    -- ============================
+CREATE TABLE savings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  month TEXT NOT NULL,
+  amount REAL NOT NULL,
+  source_month TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ============================
 -- ROLLOVERS
 -- ============================

@@ -84,13 +84,11 @@ router.get("/:month", (req, res) => {
     });
   }
 
-  // ⭐ Normaliseer remaining (NULL → total_budget)
   const normalizedRemaining =
     row.remaining === null || row.remaining === undefined
       ? row.total_budget
       : row.remaining;
 
-  // ⭐ Subbudgets ophalen
   const subBudgets = db
     .prepare(
       `
@@ -99,10 +97,16 @@ router.get("/:month", (req, res) => {
       WHERE month = ?
     `,
     )
-    .all(month);
+    .all(month) as {
+    id: number;
+    category_id: number;
+    amount: number;
+  }[];
 
   return res.json({
-    ...row,
+    id: row.id,
+    month: row.month,
+    total_budget: row.total_budget,
     remaining: normalizedRemaining,
     subBudgets,
   });
@@ -175,6 +179,75 @@ router.put("/:month", (req, res) => {
   };
 
   res.json(updated);
+});
+/* -------------------------------------------
+   DISTRIBUTE ROLL OVER + SAVING
+------------------------------------------- */
+router.post("/:month/distribute", async (req, res) => {
+  const { month } = req.params;
+  const { rollover, savings } = req.body;
+
+  try {
+    // 1) Huidige maand ophalen (met type!)
+    const currentBudget = db
+      .prepare("SELECT * FROM budgets WHERE month = ?")
+      .get(month) as
+      | {
+          id: number;
+          month: string;
+          total_budget: number;
+          remaining: number;
+        }
+      | undefined;
+
+    if (!currentBudget) {
+      return res.status(404).json({ error: "Budget not found" });
+    }
+
+    // 2) Volgende maand bepalen
+    const [year, m] = month.split("-");
+    const nextMonth =
+      Number(m) === 12
+        ? `${Number(year) + 1}-01`
+        : `${year}-${String(Number(m) + 1).padStart(2, "0")}`;
+
+    // 3) Rollover toevoegen
+    if (rollover > 0) {
+      db.prepare(
+        `
+        INSERT INTO budgets (month, total_budget, remaining)
+        VALUES (?, ?, ?)
+        ON CONFLICT(month) DO UPDATE SET
+          total_budget = total_budget + excluded.total_budget,
+          remaining = remaining + excluded.remaining
+      `,
+      ).run(nextMonth, rollover, rollover);
+    }
+
+    // 4) Savings opslaan
+    if (savings > 0) {
+      db.prepare(
+        `
+        INSERT INTO savings (month, amount, source_month)
+        VALUES (?, ?, ?)
+      `,
+      ).run(month, savings, month);
+    }
+
+    // 5) Remaining resetten
+    db.prepare(
+      `
+      UPDATE budgets
+      SET remaining = 0
+      WHERE month = ?
+    `,
+    ).run(month);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to distribute remaining" });
+  }
 });
 
 /* -------------------------------------------
