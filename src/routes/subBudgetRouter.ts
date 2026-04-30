@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "../lib/db";
+import { pool } from "../lib/db";
 
 export const subBudgetRouter = Router();
 
@@ -19,7 +19,7 @@ type SubBudgetRow = {
 /* -------------------------------------------------------
    GET — alle sub‑budgetten voor een maand
 ------------------------------------------------------- */
-subBudgetRouter.get("/:month", (req, res) => {
+subBudgetRouter.get("/:month", async (req, res) => {
   const { month } = req.params;
   const userId = String(req.query.user_id);
 
@@ -27,26 +27,32 @@ subBudgetRouter.get("/:month", (req, res) => {
     return res.status(400).json({ error: "user_id is required" });
   }
 
-  const stmt = db.prepare(`
-    SELECT sb.*, 
-           c.name AS category_name, 
-           c.type AS category_type, 
-           c.color AS category_color
-    FROM sub_budgets sb
-    JOIN categories c ON c.id = sb.category_id
-    WHERE sb.month = ? AND sb.user_id = ?
-    ORDER BY c.name ASC
-  `);
+  try {
+    const result = await pool.query(
+      `
+      SELECT sb.*, 
+             c.name AS category_name, 
+             c.type AS category_type, 
+             c.color AS category_color
+      FROM sub_budgets sb
+      JOIN categories c ON c.id = sb.category_id
+      WHERE sb.month = $1 AND sb.user_id = $2
+      ORDER BY c.name ASC
+      `,
+      [month, userId],
+    );
 
-  const rows = stmt.all(month, userId);
-
-  res.json(rows);
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /sub-budgets error:", err);
+    res.status(500).json({ error: "Failed to fetch sub-budgets" });
+  }
 });
 
 /* -------------------------------------------------------
    CREATE — nieuw sub‑budget
 ------------------------------------------------------- */
-subBudgetRouter.post("/", (req, res) => {
+subBudgetRouter.post("/", async (req, res) => {
   const { user_id, month, category_id, amount } = req.body;
 
   if (!user_id || !month || !category_id) {
@@ -55,26 +61,33 @@ subBudgetRouter.post("/", (req, res) => {
     });
   }
 
-  const stmt = db.prepare(`
-    INSERT INTO sub_budgets (user_id, month, category_id, amount)
-    VALUES (?, ?, ?, ?)
-  `);
+  try {
+    const result = await pool.query(
+      `
+      INSERT INTO sub_budgets (user_id, month, category_id, amount)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id
+      `,
+      [user_id, month, category_id, amount ?? 0],
+    );
 
-  const result = stmt.run(user_id, month, category_id, amount ?? 0);
-
-  res.json({
-    id: result.lastInsertRowid,
-    user_id,
-    month,
-    category_id,
-    amount: amount ?? 0,
-  });
+    res.json({
+      id: result.rows[0].id,
+      user_id,
+      month,
+      category_id,
+      amount: amount ?? 0,
+    });
+  } catch (err) {
+    console.error("POST /sub-budgets error:", err);
+    res.status(500).json({ error: "Failed to create sub-budget" });
+  }
 });
 
 /* -------------------------------------------------------
    UPDATE — sub‑budget aanpassen
 ------------------------------------------------------- */
-subBudgetRouter.put("/:id", (req, res) => {
+subBudgetRouter.put("/:id", async (req, res) => {
   const { id } = req.params;
   const { user_id, amount, category_id } = req.body;
 
@@ -84,21 +97,27 @@ subBudgetRouter.put("/:id", (req, res) => {
     });
   }
 
-  const stmt = db.prepare(`
-    UPDATE sub_budgets
-    SET amount = ?, category_id = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ? AND user_id = ?
-  `);
+  try {
+    await pool.query(
+      `
+      UPDATE sub_budgets
+      SET amount = $1, category_id = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3 AND user_id = $4
+      `,
+      [amount, category_id, id, user_id],
+    );
 
-  stmt.run(amount, category_id, id, user_id);
-
-  res.json({ id, user_id, amount, category_id });
+    res.json({ id, user_id, amount, category_id });
+  } catch (err) {
+    console.error("PUT /sub-budgets error:", err);
+    res.status(500).json({ error: "Failed to update sub-budget" });
+  }
 });
 
 /* -------------------------------------------------------
    DELETE — sub‑budget verwijderen + transacties verplaatsen
 ------------------------------------------------------- */
-subBudgetRouter.delete("/:id", (req, res) => {
+subBudgetRouter.delete("/:id", async (req, res) => {
   const { id } = req.params;
   const userId = String(req.query.user_id);
 
@@ -106,52 +125,62 @@ subBudgetRouter.delete("/:id", (req, res) => {
     return res.status(400).json({ error: "user_id is required" });
   }
 
-  // 1. Haal sub-budget op
-  const subBudget = db
-    .prepare(
+  try {
+    // 1. Haal sub-budget op
+    const subResult = await pool.query(
       `
-      SELECT * FROM sub_budgets WHERE id = ? AND user_id = ?
-    `,
-    )
-    .get(id, userId) as SubBudgetRow | undefined;
+      SELECT * FROM sub_budgets 
+      WHERE id = $1 AND user_id = $2
+      `,
+      [id, userId],
+    );
 
-  if (!subBudget) {
-    return res.status(404).json({ error: "Sub-budget not found" });
-  }
+    const subBudget = subResult.rows[0] as SubBudgetRow | undefined;
 
-  // 2. Zoek Overig categorie
-  const overig = db
-    .prepare(
+    if (!subBudget) {
+      return res.status(404).json({ error: "Sub-budget not found" });
+    }
+
+    // 2. Zoek Overig categorie
+    const overigResult = await pool.query(
       `
       SELECT id FROM categories 
-      WHERE user_id = ? AND name = 'Overig' 
+      WHERE user_id = $1 AND name = 'Overig'
       LIMIT 1
-    `,
-    )
-    .get(userId) as { id: number } | undefined;
+      `,
+      [userId],
+    );
 
-  if (!overig) {
-    return res.status(500).json({
-      error: "Overig category not found for this user",
-    });
+    const overig = overigResult.rows[0] as { id: number } | undefined;
+
+    if (!overig) {
+      return res.status(500).json({
+        error: "Overig category not found for this user",
+      });
+    }
+
+    // 3. Verplaats transacties naar Overig
+    await pool.query(
+      `
+      UPDATE transactions
+      SET category_id = $1
+      WHERE category_id = $2 AND user_id = $3
+      `,
+      [overig.id, subBudget.category_id, userId],
+    );
+
+    // 4. Verwijder sub-budget
+    await pool.query(
+      `
+      DELETE FROM sub_budgets 
+      WHERE id = $1 AND user_id = $2
+      `,
+      [id, userId],
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /sub-budgets error:", err);
+    res.status(500).json({ error: "Failed to delete sub-budget" });
   }
-
-  // 3. Verplaats transacties naar Overig
-  db.prepare(
-    `
-    UPDATE transactions
-    SET category_id = ?
-    WHERE category_id = ? AND user_id = ?
-  `,
-  ).run(overig.id, subBudget.category_id, userId);
-
-  // 4. Verwijder sub-budget
-  db.prepare(
-    `
-    DELETE FROM sub_budgets 
-    WHERE id = ? AND user_id = ?
-  `,
-  ).run(id, userId);
-
-  res.json({ success: true });
 });
