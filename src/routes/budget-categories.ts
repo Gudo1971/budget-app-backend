@@ -1,14 +1,13 @@
 import { Router } from "express";
-import { db } from "../lib/db";
+import { pool } from "../lib/db";
 
 const router = Router();
 
 // GET /budget-categories → alle categorie-budgetten ophalen
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const rows = db
-      .prepare(
-        `
+    const result = await pool.query(
+      `
       SELECT 
         bc.id,
         bc.month,
@@ -19,11 +18,10 @@ router.get("/", (req, res) => {
       FROM budget_categories bc
       JOIN categories c ON c.id = bc.category_id
       ORDER BY bc.month DESC, c.name ASC
-    `
-      )
-      .all();
+      `,
+    );
 
-    res.json(rows);
+    res.json(result.rows);
   } catch (error) {
     console.error("Error fetching budget categories:", error);
     res.status(500).json({ error: "Failed to fetch budget categories" });
@@ -31,7 +29,7 @@ router.get("/", (req, res) => {
 });
 
 // POST /budget-categories → budget voor categorie instellen
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const { month, category_id, budget_amount } = req.body;
 
@@ -39,15 +37,17 @@ router.post("/", (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const stmt = db.prepare(`
+    const result = await pool.query(
+      `
       INSERT INTO budget_categories (month, category_id, budget_amount)
-      VALUES (?, ?, ?)
-    `);
-
-    const result = stmt.run(month, category_id, budget_amount);
+      VALUES ($1, $2, $3)
+      RETURNING id
+      `,
+      [month, category_id, budget_amount],
+    );
 
     res.json({
-      id: result.lastInsertRowid,
+      id: result.rows[0].id,
       month,
       category_id,
       budget_amount,

@@ -1,4 +1,4 @@
-import { db } from "../lib/db";
+import { pool } from "../lib/db";
 
 // ⭐ Helper: uniform mapping
 function mapRow(row: any) {
@@ -20,10 +20,9 @@ function mapRow(row: any) {
 
 export const transactionRepository = {
   // ⭐ GET ALL
-  getAll() {
-    const rows = db
-      .prepare(
-        `
+  async getAll() {
+    const result = await pool.query(
+      `
 SELECT 
   t.id,
   t.receipt_id,
@@ -43,15 +42,15 @@ FROM transactions t
 LEFT JOIN receipts r ON r.id = t.receipt_id
 ORDER BY t.transaction_date DESC
       `,
-      )
-      .all();
+    );
 
-    return rows.map(mapRow);
+    return result.rows.map(mapRow);
   },
 
   // ⭐ CREATE
-  create(data: any) {
-    const stmt = db.prepare(`
+  async create(data: any) {
+    const result = await pool.query(
+      `
       INSERT INTO transactions (
         receipt_id,
         amount,
@@ -63,52 +62,47 @@ ORDER BY t.transaction_date DESC
         user_id,
         recurring
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const result = stmt.run(
-      data.receipt_id ?? null,
-      data.amount,
-      data.transaction_date,
-      data.merchant,
-      data.description,
-      data.category_id,
-      data.subcategory_id ?? null,
-      data.user_id,
-      data.recurring ? 1 : 0,
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id
+    `,
+      [
+        data.receipt_id ?? null,
+        data.amount,
+        data.transaction_date,
+        data.merchant,
+        data.description,
+        data.category_id,
+        data.subcategory_id ?? null,
+        data.user_id,
+        data.recurring ? 1 : 0,
+      ],
     );
 
-    return { id: result.lastInsertRowid };
+    return { id: result.rows[0].id };
   },
 
   // ⭐ FILTER (Branch 5)
-
-  filter(params: {
+  async filter(params: {
     userId: string;
 
-    // single
     year?: number;
     month?: number;
     week?: number;
 
-    // multi
     years?: number[];
     months?: number[];
     weeks?: number[];
 
-    // custom
     from?: string;
     to?: string;
 
-    // legacy
     dates?: string[];
   }) {
-    const conditions: string[] = ["t.user_id = ?"];
+    const conditions: string[] = ["t.user_id = $1"];
     const values: any[] = [params.userId];
+    let index = 2; // PostgreSQL placeholders beginnen bij $1
 
-    // -----------------------------
     // ⭐ SINGLE YEAR
-    // -----------------------------
     if (
       params.year &&
       !params.month &&
@@ -116,86 +110,82 @@ ORDER BY t.transaction_date DESC
       !params.from &&
       !params.to
     ) {
-      conditions.push("strftime('%Y', t.transaction_date) = ?");
-      values.push(String(params.year));
+      conditions.push(`EXTRACT(YEAR FROM t.transaction_date) = $${index}`);
+      values.push(params.year);
+      index++;
     }
 
-    // -----------------------------
     // ⭐ SINGLE MONTH
-    // -----------------------------
     if (params.year && params.month) {
-      conditions.push("strftime('%Y', t.transaction_date) = ?");
-      conditions.push("strftime('%m', t.transaction_date) = ?");
-      values.push(String(params.year), String(params.month).padStart(2, "0"));
+      conditions.push(`EXTRACT(YEAR FROM t.transaction_date) = $${index}`);
+      values.push(params.year);
+      index++;
+
+      conditions.push(`EXTRACT(MONTH FROM t.transaction_date) = $${index}`);
+      values.push(params.month);
+      index++;
     }
 
-    // -----------------------------
     // ⭐ SINGLE WEEK
-    // SQLite: %W = week number (Mon-Sun)
-    // -----------------------------
     if (params.year && params.week) {
-      conditions.push("strftime('%Y', t.transaction_date) = ?");
-      conditions.push("strftime('%W', t.transaction_date) = ?");
-      values.push(String(params.year), String(params.week).padStart(2, "0"));
+      conditions.push(`EXTRACT(YEAR FROM t.transaction_date) = $${index}`);
+      values.push(params.year);
+      index++;
+
+      conditions.push(`EXTRACT(WEEK FROM t.transaction_date) = $${index}`);
+      values.push(params.week);
+      index++;
     }
 
-    // -----------------------------
     // ⭐ MULTI-YEAR
-    // -----------------------------
     if (params.years?.length) {
+      const placeholders = params.years.map(() => `$${index++}`).join(",");
       conditions.push(
-        `strftime('%Y', t.transaction_date) IN (${params.years.map(() => "?").join(",")})`,
+        `EXTRACT(YEAR FROM t.transaction_date) IN (${placeholders})`,
       );
-      values.push(...params.years.map(String));
+      values.push(...params.years);
     }
 
-    // -----------------------------
     // ⭐ MULTI-MONTH
-    // -----------------------------
     if (params.months?.length && params.year) {
-      conditions.push("strftime('%Y', t.transaction_date) = ?");
-      values.push(String(params.year));
+      conditions.push(`EXTRACT(YEAR FROM t.transaction_date) = $${index}`);
+      values.push(params.year);
+      index++;
 
+      const placeholders = params.months.map(() => `$${index++}`).join(",");
       conditions.push(
-        `strftime('%m', t.transaction_date) IN (${params.months.map(() => "?").join(",")})`,
+        `EXTRACT(MONTH FROM t.transaction_date) IN (${placeholders})`,
       );
-      values.push(...params.months.map((m) => String(m).padStart(2, "0")));
+      values.push(...params.months);
     }
 
-    // -----------------------------
     // ⭐ MULTI-WEEK
-    // -----------------------------
     if (params.weeks?.length && params.year) {
-      conditions.push("strftime('%Y', t.transaction_date) = ?");
-      values.push(String(params.year));
+      conditions.push(`EXTRACT(YEAR FROM t.transaction_date) = $${index}`);
+      values.push(params.year);
+      index++;
 
+      const placeholders = params.weeks.map(() => `$${index++}`).join(",");
       conditions.push(
-        `strftime('%W', t.transaction_date) IN (${params.weeks.map(() => "?").join(",")})`,
+        `EXTRACT(WEEK FROM t.transaction_date) IN (${placeholders})`,
       );
-      values.push(...params.weeks.map((w) => String(w).padStart(2, "0")));
+      values.push(...params.weeks);
     }
 
-    // -----------------------------
     // ⭐ CUSTOM RANGE
-    // -----------------------------
     if (params.from && params.to) {
-      conditions.push("t.transaction_date BETWEEN ? AND ?");
+      conditions.push(`t.transaction_date BETWEEN $${index} AND $${index + 1}`);
       values.push(params.from, params.to);
+      index += 2;
     }
 
-    // -----------------------------
-    // ⭐ MULTIPLE DAYS (legacy)
-    // -----------------------------
+    // ⭐ MULTIPLE DAYS
     if (params.dates?.length) {
-      conditions.push(
-        `t.transaction_date IN (${params.dates.map(() => "?").join(",")})`,
-      );
+      const placeholders = params.dates.map(() => `$${index++}`).join(",");
+      conditions.push(`t.transaction_date IN (${placeholders})`);
       values.push(...params.dates);
     }
 
-    // -----------------------------
-    // ⭐ FINAL QUERY
-    // -----------------------------
     const query = `
 SELECT 
   t.id,
@@ -216,9 +206,9 @@ FROM transactions t
 LEFT JOIN receipts r ON r.id = t.receipt_id
 WHERE ${conditions.join(" AND ")}
 ORDER BY t.transaction_date DESC
-  `;
+    `;
 
-    const rows = db.prepare(query).all(...values);
-    return rows.map(mapRow);
+    const result = await pool.query(query, values);
+    return result.rows.map(mapRow);
   },
 };
