@@ -97,9 +97,37 @@ async function startServer() {
   // 3. Start Express server
   const app = express();
 
+  // ✅ CORS configuratie - Allow Vercel + localhost
+  const allowedOrigins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "https://budget-app-frontend-orpin.vercel.app",
+    "https://budget-app-frontend-orpin.vercel.app/",
+    // Vercel preview deployments
+    /https:\/\/budget-app-frontend-.*\.vercel\.app$/,
+  ];
+
   app.use(
     cors({
-      origin: ["http://localhost:5173", "http://localhost:5174"],
+      origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, etc)
+        if (!origin) return callback(null, true);
+
+        // Check if origin is in allowed list or matches regex
+        const isAllowed = allowedOrigins.some((allowed) => {
+          if (typeof allowed === "string") {
+            return origin === allowed || origin === allowed.replace(/\/$/, "");
+          }
+          return allowed.test(origin);
+        });
+
+        if (isAllowed) {
+          callback(null, true);
+        } else {
+          console.warn("⚠️ CORS blocked origin:", origin);
+          callback(new Error("Not allowed by CORS"));
+        }
+      },
       credentials: true,
     }),
   );
