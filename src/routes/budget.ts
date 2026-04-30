@@ -88,9 +88,12 @@ router.get("/:month", async (req, res) => {
     res.json({
       id: row.id,
       month: row.month,
-      total_budget: row.total_budget,
-      remaining: normalizedRemaining,
-      subBudgets: subResult.rows,
+      total_budget: parseFloat(row.total_budget), // ✅ Parse to number
+      remaining: parseFloat(normalizedRemaining), // ✅ Parse to number
+      subBudgets: subResult.rows.map((sub) => ({
+        ...sub,
+        amount: parseFloat(sub.amount), // ✅ Parse to number
+      })),
     });
   } catch (err) {
     console.error("GET /budget/:month error:", err);
@@ -125,7 +128,12 @@ router.post("/", async (req, res) => {
       [month],
     );
 
-    res.json(result.rows[0]);
+    const budget = result.rows[0];
+    res.json({
+      ...budget,
+      total_budget: parseFloat(budget.total_budget),
+      remaining: parseFloat(budget.remaining),
+    });
   } catch (err) {
     console.error("POST /budget error:", err);
     res.status(500).json({ error: "Failed to create/update budget" });
@@ -160,7 +168,12 @@ router.put("/:month", async (req, res) => {
       [month],
     );
 
-    res.json(result.rows[0]);
+    const budgetData = result.rows[0];
+    res.json({
+      ...budgetData,
+      total_budget: parseFloat(budgetData.total_budget),
+      remaining: parseFloat(budgetData.remaining),
+    });
   } catch (err) {
     console.error("PUT /budget error:", err);
     res.status(500).json({ error: "Failed to update budget" });
@@ -331,7 +344,12 @@ router.post("/copy/:from/:to", async (req, res) => {
       [to],
     );
 
-    res.json(newResult.rows[0]);
+    const copiedBudget = newResult.rows[0];
+    res.json({
+      ...copiedBudget,
+      total_budget: parseFloat(copiedBudget.total_budget),
+      remaining: parseFloat(copiedBudget.remaining),
+    });
   } catch (err) {
     console.error("POST /budget/copy error:", err);
     res.status(500).json({ error: "Failed to copy budget" });
