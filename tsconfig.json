@@ -13,8 +13,8 @@
 
     "baseUrl": "src",
     "paths": {
-      "@backend/*": ["*"],
-      "@shared/*": ["shared/*"]
+      "@shared/*": ["shared/*"],
+      "@backend/*": ["*"]
     }
   },
 
