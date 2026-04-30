@@ -4,10 +4,16 @@
   "description": "",
   "main": "index.js",
   "type": "commonjs",
+  "_moduleAliases": {
+    "@shared": "../shared",
+    "@backend": "dist/src"
+  },
   "scripts": {
     "dev": "nodemon --watch src --exec ts-node -P tsconfig.json -r tsconfig-paths/register src/index.ts",
-    "build": "tsc -P tsconfig.json",
-    "start": "node dist/index.js",
+    "build": "npm run build:clean && npm run build:compile",
+    "build:clean": "rimraf dist",
+    "build:compile": "tsc -P tsconfig.json",
+    "start": "node -r module-alias/register dist/src/index.js",
     "seed": "ts-node -P tsconfig.json -r tsconfig-paths/register src/scripts/import-all-csvs.ts",
     "db:init": "ts-node -P tsconfig.json -r tsconfig-paths/register src/scripts/init-db.ts",
     "db:seed": "ts-node -P tsconfig.json -r tsconfig-paths/register src/scripts/import-all-csvs.ts"
@@ -39,7 +45,8 @@
     "tesseract.js": "^7.0.0",
     "zod": "^4.3.5",
     "zod-to-json-schema": "^3.25.1",
-    "zustand": "^5.0.9"
+    "zustand": "^5.0.9",
+    "module-alias": "^2.2.3"
   },
   "devDependencies": {
     "@types/archiver": "^7.0.0",
@@ -55,6 +62,7 @@
     "nodemon": "^3.1.11",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "rimraf": "^6.0.1"
   }
 }

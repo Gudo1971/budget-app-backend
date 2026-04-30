@@ -4,7 +4,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
 
-    "rootDir": "..",
+    "rootDir": ".",
 
     "rootDirs": ["src", "../shared"],
 
@@ -14,14 +14,14 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
 
-    "baseUrl": "..",
+    "baseUrl": ".",
     "paths": {
-      "@shared/*": ["shared/*"],
-      "@backend/*": ["backend/src/*"]
+      "@shared/*": ["../shared/*"],
+      "@backend/*": ["src/*"]
     }
   },
 
-  "include": ["src", "../shared"],
+  "include": ["src/**/*", "../shared/**/*"],
 
   "exclude": ["node_modules", "dist"]
 }
