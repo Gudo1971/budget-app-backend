@@ -2,7 +2,7 @@ import { pool } from "../../lib/db";
 import { similarity } from "./string.utils";
 import { dateRange } from "./date.utils";
 import { amountCloseEnough } from "./amount.utils";
-import { normalizeMerchant } from "@shared/services/normalizeMerchant";
+import { normalizeMerchant } from "../../../../shared/services/normalizeMerchant";
 import {
   MatchInput,
   MatchResult,

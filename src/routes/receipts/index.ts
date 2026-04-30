@@ -7,7 +7,7 @@ import { pool } from "../../lib/db";
 import smartUploadReceipt from "./upload";
 import confirmLinkRoute from "./confirmLink";
 import { matchingService } from "../../services/matching/matching.service";
-import { normalizeMerchant } from "@shared/services/normalizeMerchant";
+import { normalizeMerchant } from "../../../../shared/services/normalizeMerchant";
 
 const router = Router();
 const USER_ID = "demo-user";

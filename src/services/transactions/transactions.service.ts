@@ -1,6 +1,6 @@
 import { pool } from "../../lib/db";
 import { normalizeDate } from "./transaction.utils";
-import { normalizeMerchant } from "@shared/services/normalizeMerchant";
+import { normalizeMerchant } from "../../../../shared/services/normalizeMerchant";
 import { resolveCategory } from "../categories/resolveCategory";
 import {
   upsertMerchantMemory,

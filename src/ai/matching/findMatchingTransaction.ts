@@ -1,9 +1,9 @@
-import { normalizeMerchant } from "@shared/services/normalizeMerchant";
+import { normalizeMerchant } from "../../../../shared/services/normalizeMerchant";
 import { similarity } from "../helpers/similarity";
-import { db } from "../../lib/db";
+import { pool } from "../../lib/db";
 
-import { Transaction } from "../../../../shared/types/Transaction";
-import { MatchInput, MatchResult } from "../../../../shared/types/matching";
+import { Transaction } from "../../shared/types/Transaction";
+import { MatchInput, MatchResult } from "../../shared/types/matching";
 
 export async function findMatchingTransaction({
   receiptId,
@@ -23,27 +23,26 @@ export async function findMatchingTransaction({
   const inputAmount = Math.abs(amount);
 
   // ⭐ Typed DB query
-  const transactions = db
-    .prepare(
-      `
+  const result = await pool.query(
+    `
     SELECT 
       id,
-      date,
-      transaction_date,
+      transaction_date as date,
       description,
       amount,
       merchant,
-      merchant_raw,
       receipt_id,
       category_id,
-      category,
-      subcategory,
-      subcategory_id
+      subcategory_id,
+      recurring,
+      user_id
     FROM transactions
-    WHERE user_id = ?
+    WHERE user_id = $1
     `,
-    )
-    .all("demo-user") as Array<Transaction>;
+    ["demo-user"],
+  );
+
+  const transactions = result.rows as Array<Transaction>;
 
   let bestDuplicate: Transaction | null = null;
   let bestAiMatch: Transaction | null = null;

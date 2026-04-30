@@ -1,5 +1,5 @@
 import { Receipt } from "../schemas/ReceiptSchema";
-import { MatchInput } from "../../../../shared/types/matching";
+import { MatchInput } from "../../shared/types/matching";
 
 export function mapReceiptToMatchInput(
   receiptId: number,

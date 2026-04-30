@@ -1,16 +1,15 @@
-import { db } from "./db";
+import { pool } from "./db";
 
-export function findBudgetForCategory(categoryName: string) {
-  const row = db
-    .prepare(
-      `
-      SELECT b.id, b.name, b.limit, b.category_id
-      FROM budgets b
-      JOIN categories c ON c.id = b.category_id
-      WHERE LOWER(c.name) = LOWER(?)
+export async function findBudgetForCategory(categoryName: string) {
+  const result = await pool.query(
     `
-    )
-    .get(categoryName);
+    SELECT b.id, b.month, b.total_budget, b.remaining
+    FROM budgets b
+    JOIN categories c ON c.id = b.category_id
+    WHERE LOWER(c.name) = LOWER($1)
+    `,
+    [categoryName],
+  );
 
-  return row || null;
+  return result.rows[0] || null;
 }
