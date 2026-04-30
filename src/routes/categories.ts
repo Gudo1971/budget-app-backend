@@ -1,11 +1,11 @@
 import { Router } from "express";
-import { db } from "../lib/db";
+import { pool } from "../lib/db";
 import { generateColor } from "../utils/generateColor";
 
 const router = Router();
 
 // GET /categories → alle categorieën ophalen
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const { userId } = req.query;
 
@@ -13,18 +13,17 @@ router.get("/", (req, res) => {
       return res.status(400).json({ error: "Missing userId" });
     }
 
-    const categories = db
-      .prepare(
-        `
-        SELECT id, name, color
-        FROM categories
-        WHERE user_id = ?
-        ORDER BY name ASC
+    const result = await pool.query(
+      `
+      SELECT id, name, color
+      FROM categories
+      WHERE user_id = $1
+      ORDER BY name ASC
       `,
-      )
-      .all(userId);
+      [userId],
+    );
 
-    res.json(categories);
+    res.json(result.rows);
   } catch (error) {
     console.error("Error fetching categories:", error);
     res.status(500).json({ error: "Failed to fetch categories" });
@@ -32,7 +31,7 @@ router.get("/", (req, res) => {
 });
 
 // POST /categories → nieuwe categorie toevoegen
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const { userId, name } = req.body;
 
@@ -42,15 +41,17 @@ router.post("/", (req, res) => {
 
     const color = generateColor(); // ⭐ kleur voor nieuwe categorie
 
-    const stmt = db.prepare(`
+    const result = await pool.query(
+      `
       INSERT INTO categories (user_id, name, type, color)
-      VALUES (?, ?, 'variable', ?)
-    `);
-
-    const result = stmt.run(userId, name.trim(), color);
+      VALUES ($1, $2, 'variable', $3)
+      RETURNING id
+      `,
+      [userId, name.trim(), color],
+    );
 
     res.json({
-      id: result.lastInsertRowid,
+      id: result.rows[0].id,
       name: name.trim(),
       type: "custom",
       color,
