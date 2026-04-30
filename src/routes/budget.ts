@@ -1,185 +1,172 @@
 import { Router } from "express";
-import { db } from "../lib/db";
+import { pool } from "../lib/db";
 
 const router = Router();
 
 /* -------------------------------------------
    GET ALL BUDGETS
 ------------------------------------------- */
-router.get("/", (req, res) => {
-  const rows = db
-    .prepare(
-      `
-    SELECT id, month, total_budget, remaining
-    FROM budgets
-    ORDER BY month DESC
-  `,
-    )
-    .all() as {
-    id: number;
-    month: string;
-    total_budget: number;
-    remaining: number;
-  }[];
+router.get("/", async (req, res) => {
+  try {
+    const budgetsResult = await pool.query(`
+      SELECT id, month, total_budget, remaining
+      FROM budgets
+      ORDER BY month DESC
+    `);
 
-  const budgets = rows.map((row) => {
-    const subBudgets = db
-      .prepare(
+    const budgets = [];
+
+    for (const row of budgetsResult.rows) {
+      const subResult = await pool.query(
         `
-      SELECT 
-        sb.id,
-        sb.category_id,
-        sb.amount,
-        c.name AS category_name,
-        c.color AS category_color
-      FROM sub_budgets sb
-      JOIN categories c ON c.id = sb.category_id
-      WHERE sb.month = ?
-    `,
-      )
-      .all(row.month) as {
-      id: number;
-      category_id: number;
-      amount: number;
-      category_name: string;
-      category_color: string;
-    }[];
+        SELECT 
+          sb.id,
+          sb.category_id,
+          sb.amount,
+          c.name AS category_name,
+          c.color AS category_color
+        FROM sub_budgets sb
+        JOIN categories c ON c.id = sb.category_id
+        WHERE sb.month = $1
+        `,
+        [row.month],
+      );
 
-    return { ...row, subBudgets };
-  });
+      budgets.push({
+        ...row,
+        subBudgets: subResult.rows,
+      });
+    }
 
-  res.json(budgets);
+    res.json(budgets);
+  } catch (err) {
+    console.error("GET /budgets error:", err);
+    res.status(500).json({ error: "Failed to fetch budgets" });
+  }
 });
 
 /* -------------------------------------------
    GET BUDGET BY MONTH
 ------------------------------------------- */
-router.get("/:month", (req, res) => {
+router.get("/:month", async (req, res) => {
   const { month } = req.params;
 
-  const row = db
-    .prepare(
+  try {
+    const result = await pool.query(
       `
       SELECT id, month, total_budget, remaining
       FROM budgets
-      WHERE month = ?
-    `,
-    )
-    .get(month) as
-    | {
-        id: number;
-        month: string;
-        total_budget: number;
-        remaining: number | null;
-      }
-    | undefined;
+      WHERE month = $1
+      `,
+      [month],
+    );
 
-  if (!row) {
-    return res.json({
-      id: null,
-      month,
-      total_budget: 0,
-      remaining: 0,
-      subBudgets: [],
-    });
-  }
+    const row = result.rows[0];
 
-  const normalizedRemaining =
-    row.remaining === null || row.remaining === undefined
-      ? row.total_budget
-      : row.remaining;
+    if (!row) {
+      return res.json({
+        id: null,
+        month,
+        total_budget: 0,
+        remaining: 0,
+        subBudgets: [],
+      });
+    }
 
-  const subBudgets = db
-    .prepare(
+    const normalizedRemaining =
+      row.remaining === null ? row.total_budget : row.remaining;
+
+    const subResult = await pool.query(
       `
       SELECT id, category_id, amount
       FROM sub_budgets
-      WHERE month = ?
-    `,
-    )
-    .all(month) as {
-    id: number;
-    category_id: number;
-    amount: number;
-  }[];
+      WHERE month = $1
+      `,
+      [month],
+    );
 
-  return res.json({
-    id: row.id,
-    month: row.month,
-    total_budget: row.total_budget,
-    remaining: normalizedRemaining,
-    subBudgets,
-  });
+    res.json({
+      id: row.id,
+      month: row.month,
+      total_budget: row.total_budget,
+      remaining: normalizedRemaining,
+      subBudgets: subResult.rows,
+    });
+  } catch (err) {
+    console.error("GET /budget/:month error:", err);
+    res.status(500).json({ error: "Failed to fetch budget" });
+  }
 });
 
 /* -------------------------------------------
    CREATE OR UPDATE BUDGET
 ------------------------------------------- */
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   const { month, total_budget, remaining } = req.body;
-  console.log("POST /budget body:", req.body);
-  db.prepare(
-    `
-    INSERT INTO budgets (month, total_budget, remaining)
-    VALUES (?, ?, ?)
-    ON CONFLICT(month) DO UPDATE SET
-      total_budget = excluded.total_budget,
-      remaining = excluded.remaining
-  `,
-  ).run(month, total_budget, remaining);
 
-  const created = db
-    .prepare(
+  try {
+    await pool.query(
       `
-    SELECT id, month, total_budget, remaining
-    FROM budgets
-    WHERE month = ?
-  `,
-    )
-    .get(month) as {
-    id: number;
-    month: string;
-    total_budget: number;
-    remaining: number;
-  };
+      INSERT INTO budgets (month, total_budget, remaining)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (month) DO UPDATE SET
+        total_budget = EXCLUDED.total_budget,
+        remaining = EXCLUDED.remaining
+      `,
+      [month, total_budget, remaining],
+    );
 
-  res.json(created);
+    const result = await pool.query(
+      `
+      SELECT id, month, total_budget, remaining
+      FROM budgets
+      WHERE month = $1
+      `,
+      [month],
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("POST /budget error:", err);
+    res.status(500).json({ error: "Failed to create/update budget" });
+  }
 });
 
 /* -------------------------------------------
    UPDATE BUDGET
 ------------------------------------------- */
-router.put("/:month", (req, res) => {
+router.put("/:month", async (req, res) => {
   const { month } = req.params;
   const { total_budget, remaining } = req.body;
-  console.log("PUT/budget body:", req.body);
-  db.prepare(
-    `
-    INSERT INTO budgets (month, total_budget, remaining)
-    VALUES (?, ?, ?)
-    ON CONFLICT(month) DO UPDATE SET
-      total_budget = excluded.total_budget,
-      remaining = excluded.remaining
-  `,
-  ).run(month, total_budget, remaining);
 
-  const updated = db
-    .prepare(
+  try {
+    await pool.query(
       `
-    SELECT id, month, total_budget, remaining
-    FROM budgets
-    WHERE month = ?
-  `,
-    )
-    .get(month) as {
-    id: number;
-    month: string;
-    total_budget: number;
-    remaining: number;
-  };
+      INSERT INTO budgets (month, total_budget, remaining)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (month) DO UPDATE SET
+        total_budget = EXCLUDED.total_budget,
+        remaining = EXCLUDED.remaining
+      `,
+      [month, total_budget, remaining],
+    );
 
-  res.json(updated);
+    const result = await pool.query(
+      `
+      SELECT id, month, total_budget, remaining
+      FROM budgets
+      WHERE month = $1
+      `,
+      [month],
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("PUT /budget error:", err);
+    res.status(500).json({ error: "Failed to update budget" });
+  }
 });
+
 /* -------------------------------------------
    DISTRIBUTE ROLL OVER + SAVING
 ------------------------------------------- */
@@ -188,64 +175,57 @@ router.post("/:month/distribute", async (req, res) => {
   const { rollover, savings } = req.body;
 
   try {
-    // 1) Huidige maand ophalen (met type!)
-    const currentBudget = db
-      .prepare("SELECT * FROM budgets WHERE month = ?")
-      .get(month) as
-      | {
-          id: number;
-          month: string;
-          total_budget: number;
-          remaining: number;
-        }
-      | undefined;
+    const currentResult = await pool.query(
+      `SELECT * FROM budgets WHERE month = $1`,
+      [month],
+    );
 
-    if (!currentBudget) {
+    const current = currentResult.rows[0];
+    if (!current) {
       return res.status(404).json({ error: "Budget not found" });
     }
 
-    // 2) Volgende maand bepalen
     const [year, m] = month.split("-");
     const nextMonth =
       Number(m) === 12
         ? `${Number(year) + 1}-01`
         : `${year}-${String(Number(m) + 1).padStart(2, "0")}`;
 
-    // 3) Rollover toevoegen
     if (rollover > 0) {
-      db.prepare(
+      await pool.query(
         `
         INSERT INTO budgets (month, total_budget, remaining)
-        VALUES (?, ?, ?)
-        ON CONFLICT(month) DO UPDATE SET
-          total_budget = total_budget + excluded.total_budget,
-          remaining = remaining + excluded.remaining
-      `,
-      ).run(nextMonth, rollover, rollover);
+        VALUES ($1, $2, $2)
+        ON CONFLICT (month) DO UPDATE SET
+          total_budget = budgets.total_budget + EXCLUDED.total_budget,
+          remaining = budgets.remaining + EXCLUDED.remaining
+        `,
+        [nextMonth, rollover],
+      );
     }
 
-    // 4) Savings opslaan
     if (savings > 0) {
-      db.prepare(
+      await pool.query(
         `
         INSERT INTO savings (month, amount, source_month)
-        VALUES (?, ?, ?)
-      `,
-      ).run(month, savings, month);
+        VALUES ($1, $2, $3)
+        `,
+        [month, savings, month],
+      );
     }
 
-    // 5) Remaining resetten
-    db.prepare(
+    await pool.query(
       `
       UPDATE budgets
       SET remaining = 0
-      WHERE month = ?
-    `,
-    ).run(month);
+      WHERE month = $1
+      `,
+      [month],
+    );
 
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error("POST /budget/distribute error:", err);
     res.status(500).json({ error: "Failed to distribute remaining" });
   }
 });
@@ -253,113 +233,109 @@ router.post("/:month/distribute", async (req, res) => {
 /* -------------------------------------------
    ROLLOVER
 ------------------------------------------- */
-router.post("/rollover/:month", (req, res) => {
+router.post("/rollover/:month", async (req, res) => {
   const { month } = req.params;
 
-  const current = db
-    .prepare(
+  try {
+    const currentResult = await pool.query(
       `
-    SELECT month, total_budget, remaining
-    FROM budgets
-    WHERE month = ?
-  `,
-    )
-    .get(month) as
-    | {
-        month: string;
-        total_budget: number;
-        remaining: number;
-      }
-    | undefined;
+      SELECT month, total_budget, remaining
+      FROM budgets
+      WHERE month = $1
+      `,
+      [month],
+    );
 
-  if (!current) {
-    return res.status(404).json({ error: "Budget not found" });
+    const current = currentResult.rows[0];
+    if (!current) {
+      return res.status(404).json({ error: "Budget not found" });
+    }
+
+    const remaining = current.remaining;
+    if (remaining <= 0) {
+      return res
+        .status(400)
+        .json({ error: "No remaining budget to roll over" });
+    }
+
+    const [year, m] = month.split("-").map(Number);
+    const nextMonth =
+      m === 12 ? `${year + 1}-01` : `${year}-${String(m + 1).padStart(2, "0")}`;
+
+    await pool.query(
+      `
+      INSERT INTO budgets (month, total_budget, remaining)
+      VALUES ($1, 0, 0)
+      ON CONFLICT (month) DO NOTHING
+      `,
+      [nextMonth],
+    );
+
+    await pool.query(
+      `
+      UPDATE budgets
+      SET total_budget = total_budget + $1
+      WHERE month = $2
+      `,
+      [remaining, nextMonth],
+    );
+
+    res.json({
+      success: true,
+      from: month,
+      to: nextMonth,
+      amount: remaining,
+    });
+  } catch (err) {
+    console.error("POST /budget/rollover error:", err);
+    res.status(500).json({ error: "Failed to roll over budget" });
   }
-
-  const remaining = current.remaining;
-
-  if (remaining <= 0) {
-    return res.status(400).json({ error: "No remaining budget to roll over" });
-  }
-
-  const [year, m] = month.split("-").map(Number);
-  const nextMonth =
-    m === 12 ? `${year + 1}-01` : `${year}-${String(m + 1).padStart(2, "0")}`;
-
-  db.prepare(
-    `
-    INSERT INTO budgets (month, total_budget, remaining)
-    VALUES (?, 0, 0)
-    ON CONFLICT(month) DO NOTHING
-  `,
-  ).run(nextMonth);
-
-  db.prepare(
-    `
-    UPDATE budgets
-    SET total_budget = total_budget + ?
-    WHERE month = ?
-  `,
-  ).run(remaining, nextMonth);
-
-  res.json({
-    success: true,
-    from: month,
-    to: nextMonth,
-    amount: remaining,
-  });
 });
 
 /* -------------------------------------------
    COPY BUDGET
 ------------------------------------------- */
-router.post("/copy/:from/:to", (req, res) => {
+router.post("/copy/:from/:to", async (req, res) => {
   const { from, to } = req.params;
 
-  const prev = db
-    .prepare(
+  try {
+    const prevResult = await pool.query(
       `
-    SELECT total_budget, remaining
-    FROM budgets
-    WHERE month = ?
-  `,
-    )
-    .get(from) as
-    | {
-        total_budget: number;
-        remaining: number;
-      }
-    | undefined;
+      SELECT total_budget, remaining
+      FROM budgets
+      WHERE month = $1
+      `,
+      [from],
+    );
 
-  if (!prev) return res.status(404).json(null);
-  console.log("POST /budget body:", req.body);
+    const prev = prevResult.rows[0];
+    if (!prev) return res.status(404).json(null);
 
-  db.prepare(
-    `
-    INSERT INTO budgets (month, total_budget, remaining)
-    VALUES (?, ?, ?)
-    ON CONFLICT(month) DO UPDATE SET
-      total_budget = excluded.total_budget,
-      remaining = excluded.remaining
-  `,
-  ).run(to, prev.total_budget, prev.remaining);
-
-  const newBudget = db
-    .prepare(
+    await pool.query(
       `
-    SELECT id, month, total_budget, remaining
-    FROM budgets
-    WHERE month = ?
-  `,
-    )
-    .get(to) as {
-    id: number;
-    month: string;
-    total_budget: number;
-    remaining: number;
-  };
+      INSERT INTO budgets (month, total_budget, remaining)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (month) DO UPDATE SET
+        total_budget = EXCLUDED.total_budget,
+        remaining = EXCLUDED.remaining
+      `,
+      [to, prev.total_budget, prev.remaining],
+    );
 
-  res.json(newBudget);
+    const newResult = await pool.query(
+      `
+      SELECT id, month, total_budget, remaining
+      FROM budgets
+      WHERE month = $1
+      `,
+      [to],
+    );
+
+    res.json(newResult.rows[0]);
+  } catch (err) {
+    console.error("POST /budget/copy error:", err);
+    res.status(500).json({ error: "Failed to copy budget" });
+  }
 });
 
 export default router;
