@@ -1,8 +1,8 @@
 import { Router } from "express";
+import { pool } from "../lib/db";
 import { transactionService } from "../services/transactions/transactions.service";
 import { resolveCategory } from "../services/categories/resolveCategory";
 import { resolveMerchantMemory } from "../services/merchantMemory/service/resolveMerchantMemory";
-import { db } from "../lib/db";
 import { normalizeMerchant } from "@shared/services/normalizeMerchant";
 
 const router = Router();
@@ -12,7 +12,7 @@ router.get("/debug", (req, res) => {
   res.json({ ok: true, route: "transactions router werkt" });
 });
 
-// ⭐ Mapping function (same as in transactionService)
+// ⭐ Mapping function
 function mapTransaction(row: any) {
   const normalized = normalizeMerchant(row.merchant);
 
@@ -25,7 +25,7 @@ function mapTransaction(row: any) {
     receipt_id: row.receipt_id ?? null,
     category_id: row.category_id ?? null,
     subcategory_id: row.subcategory_id ?? null,
-    recurring: row.recurring === 1,
+    recurring: row.recurring === 1 || row.recurring === true,
     receipt: row.receipt_id
       ? {
           url: `http://localhost:3001/uploads/${row.receipt_filename}`,
@@ -40,45 +40,44 @@ function mapTransaction(row: any) {
 }
 
 // ⭐ GET all transactions (with optional date filtering)
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const { from, to } = req.query;
 
-    // Geen filters → alles teruggeven
+    // Geen filters → alles via service
     if (!from || !to) {
-      const all = transactionService.getAll();
+      const all = await transactionService.getAll();
       return res.json(all);
     }
 
     // Met filters → database query
-    const filtered = db
-      .prepare(
-        `
-        SELECT 
-          t.id,
-          t.receipt_id,
-          t.amount,
-          t.transaction_date,
-          t.merchant,
-          t.description,
-          t.category_id,
-          t.subcategory_id,
-          t.user_id,
-          t.recurring,
-          r.filename AS receipt_filename,
-          r.aiResult AS receipt_ai_result
-        FROM transactions t
-        LEFT JOIN receipts r ON r.id = t.receipt_id
-        WHERE t.transaction_date >= ?
-        AND t.transaction_date <= ?
-        ORDER BY t.transaction_date DESC
+    const result = await pool.query(
+      `
+      SELECT 
+        t.id,
+        t.receipt_id,
+        t.amount,
+        t.transaction_date,
+        t.merchant,
+        t.description,
+        t.category_id,
+        t.subcategory_id,
+        t.user_id,
+        t.recurring,
+        r.filename AS receipt_filename,
+        r.aiResult AS receipt_ai_result
+      FROM transactions t
+      LEFT JOIN receipts r ON r.id = t.receipt_id
+      WHERE t.transaction_date >= $1
+      AND t.transaction_date <= $2
+      ORDER BY t.transaction_date DESC
       `,
-      )
-      .all(from, to);
+      [from, to],
+    );
 
     res.json({
       success: true,
-      data: filtered.map(mapTransaction),
+      data: result.rows.map(mapTransaction),
       error: null,
     });
   } catch (error) {
@@ -136,7 +135,8 @@ router.post("/from-extracted", async (req, res) => {
   res.json(result);
 });
 
-router.patch("/:id", (req, res) => {
+// ⭐ PATCH: Update category
+router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const { category_id } = req.body;
@@ -145,13 +145,14 @@ router.patch("/:id", (req, res) => {
       return res.status(400).json({ error: "Missing category_id" });
     }
 
-    db.prepare(
+    await pool.query(
       `
       UPDATE transactions
-      SET category_id = ?
-      WHERE id = ?
-    `,
-    ).run(category_id, id);
+      SET category_id = $1
+      WHERE id = $2
+      `,
+      [category_id, id],
+    );
 
     res.json({ success: true });
   } catch (error) {
@@ -159,8 +160,9 @@ router.patch("/:id", (req, res) => {
     res.status(500).json({ error: "Failed to update transaction" });
   }
 });
-// ⭐ PUT: Update transaction category (for MoveTransactionModal)
-router.put("/:id", (req, res) => {
+
+// ⭐ PUT: Update transaction category (MoveTransactionModal)
+router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const { category_id, user_id } = req.body;
@@ -169,13 +171,14 @@ router.put("/:id", (req, res) => {
       return res.status(400).json({ error: "Missing category_id or user_id" });
     }
 
-    db.prepare(
+    await pool.query(
       `
       UPDATE transactions
-      SET category_id = ?
-      WHERE id = ? AND user_id = ?
-    `,
-    ).run(category_id, id, user_id);
+      SET category_id = $1
+      WHERE id = $2 AND user_id = $3
+      `,
+      [category_id, id, user_id],
+    );
 
     res.json({ success: true });
   } catch (error) {
@@ -185,22 +188,21 @@ router.put("/:id", (req, res) => {
 });
 
 // ⭐ GET: Total income for a given month (YYYY-MM)
-router.get("/income/:month", (req, res) => {
+router.get("/income/:month", async (req, res) => {
   try {
     const { month } = req.params;
 
-    const row = db
-      .prepare(
-        `
-        SELECT SUM(amount) as total
-        FROM transactions
-        WHERE amount > 0
-        AND transaction_date LIKE ?
+    const result = await pool.query(
+      `
+      SELECT SUM(amount) AS total
+      FROM transactions
+      WHERE amount > 0
+      AND TO_CHAR(transaction_date, 'YYYY-MM') = $1
       `,
-      )
-      .get(`${month}%`) as { total: number | null };
+      [month],
+    );
 
-    res.json(row.total || 0);
+    res.json(result.rows[0].total || 0);
   } catch (error) {
     console.error("Error fetching income:", error);
     res.status(500).json({ error: "Failed to fetch income" });
