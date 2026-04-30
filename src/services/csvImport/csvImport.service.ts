@@ -4,7 +4,7 @@ import {
   getCategoryForMerchant,
   upsertMerchantMemory,
 } from "../merchantMemory/service/merchantMemory.service";
-import { normalizeMerchant } from "../../../../shared/services/normalizeMerchant";
+import { normalizeMerchant } from "../../shared/services/normalizeMerchant";
 import { resolveCategory } from "../categories/resolveCategory";
 
 export const csvImportService = {

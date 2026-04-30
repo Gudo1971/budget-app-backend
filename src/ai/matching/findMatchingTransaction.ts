@@ -1,4 +1,4 @@
-import { normalizeMerchant } from "../../../../shared/services/normalizeMerchant";
+import { normalizeMerchant } from "../../shared/services/normalizeMerchant";
 import { similarity } from "../helpers/similarity";
 import { pool } from "../../lib/db";
 

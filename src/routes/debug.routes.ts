@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { pool } from "../lib/db";
-import { normalizeMerchant } from "../../../shared/services/normalizeMerchant";
+import { normalizeMerchant } from "../shared/services/normalizeMerchant";
 import { resolveCategory } from "../services/categories/resolveCategory";
 import { upsertMerchantMemory } from "../services/merchantMemory/service/merchantMemory.service";
 

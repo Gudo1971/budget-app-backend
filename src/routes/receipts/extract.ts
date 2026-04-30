@@ -4,7 +4,7 @@ import path from "path";
 import { pool } from "../../lib/db";
 import { extractReceiptFromImage } from "../../ai/extractors/extractReceiptFromImage";
 import { resolveCategory } from "../../services/categories/resolveCategory";
-import { normalizeMerchant } from "../../../../shared/services/normalizeMerchant";
+import { normalizeMerchant } from "../../shared/services/normalizeMerchant";
 
 const router = Router();
 const USER_ID = "demo-user";

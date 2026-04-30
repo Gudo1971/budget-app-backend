@@ -1,6 +1,6 @@
 import fs from "fs";
 import { parseCsv } from "./csv.parser";
-import { normalizeMerchant } from "../../../shared/services/normalizeMerchant";
+import { normalizeMerchant } from "../shared/services/normalizeMerchant";
 import { transactionService } from "../services/transactions/transactions.service";
 
 export async function importTransactionsCsv(filePath: string, userId: string) {

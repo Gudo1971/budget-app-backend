@@ -1,5 +1,5 @@
 import { pool } from "../../../lib/db";
-import { normalizeMerchant } from "../../../../../shared/services/normalizeMerchant";
+import { normalizeMerchant } from "../../../shared/services/normalizeMerchant";
 
 export async function getCategoryForMerchant(
   userId: string,

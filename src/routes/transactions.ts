@@ -3,7 +3,7 @@ import { pool } from "../lib/db";
 import { transactionService } from "../services/transactions/transactions.service";
 import { resolveCategory } from "../services/categories/resolveCategory";
 import { resolveMerchantMemory } from "../services/merchantMemory/service/resolveMerchantMemory";
-import { normalizeMerchant } from "../../../shared/services/normalizeMerchant";
+import { normalizeMerchant } from "../shared/services/normalizeMerchant";
 
 const router = Router();
 console.log("🚀 transactions router loaded");
