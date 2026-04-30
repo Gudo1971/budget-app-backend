@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { db } from "../../lib/db";
+import { pool } from "../../lib/db";
 
 const USER_ID = "demo-user";
 
@@ -12,15 +12,16 @@ export default async function analyzeReceipt(req: Request, res: Response) {
     }
 
     // 1. RECEIPT OPHALEN
-    const receipt = db
-      .prepare(
-        `
-        SELECT *
-        FROM receipts
-        WHERE id = ? AND user_id = ?
-        `,
-      )
-      .get(receiptId, USER_ID);
+    const receiptResult = await pool.query(
+      `
+      SELECT *
+      FROM receipts
+      WHERE id = $1 AND user_id = $2
+      `,
+      [receiptId, USER_ID],
+    );
+
+    const receipt = receiptResult.rows[0];
 
     if (!receipt) {
       return res.status(404).json({ error: "Receipt not found" });
@@ -37,15 +38,16 @@ export default async function analyzeReceipt(req: Request, res: Response) {
     };
 
     // 4. OPSLAAN IN DB
-    db.prepare(
+    await pool.query(
       `
       UPDATE receipts
-      SET ocrText = ?, aiResult = ?, status = 'analyzed'
-      WHERE id = ?
+      SET ocrText = $1, aiResult = $2, status = 'analyzed'
+      WHERE id = $3
       `,
-    ).run(ocrText, JSON.stringify(aiResult), receiptId);
+      [ocrText, JSON.stringify(aiResult), receiptId],
+    );
 
-    // 5. TERUGSTUREN — GEEN MATCHING HIER
+    // 5. TERUGSTUREN
     return res.json({
       action: "analyzed",
       receiptId,
