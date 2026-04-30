@@ -1,3 +1,6 @@
+// ❗ BELANGRIJK: dotenv MOET als eerste geladen worden
+import "dotenv/config";
+
 import { initDatabase } from "./init-db-function";
 
 initDatabase()

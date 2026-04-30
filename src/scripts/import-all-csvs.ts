@@ -87,7 +87,7 @@ async function importAllCsvs() {
     } else if (file === "savings_goals.csv") {
       await importSavingsGoalsCsv(filePath, "demo-user");
     } else if (file === "merchant_memory.csv") {
-      await importMerchantMemoryCsv(1);
+      await importMerchantMemoryCsv("demo-user");
     } else if (file === "transactions.csv") {
       await importTransactionsCsv(filePath, "demo-user");
     }

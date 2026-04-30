@@ -1,10 +1,13 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import { pool } from "../lib/db";
 
 export async function initDatabase() {
   await pool.query(`
     -- DROP ALL TABLES
-    DROP TABLE IF EXISTS transactions CASCADE;
     DROP TABLE IF EXISTS receipts CASCADE;
+    DROP TABLE IF EXISTS transactions CASCADE;
     DROP TABLE IF EXISTS budget_categories CASCADE;
     DROP TABLE IF EXISTS sub_budgets CASCADE;
     DROP TABLE IF EXISTS merchant_memory CASCADE;
@@ -27,7 +30,7 @@ export async function initDatabase() {
       color TEXT
     );
 
-        -- ============================
+    -- ============================
     -- SUBCATEGORIES
     -- ============================
     CREATE TABLE subcategories (
@@ -38,7 +41,25 @@ export async function initDatabase() {
       FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
     );
 
-        -- ============================
+    -- ============================
+    -- TRANSACTIONS
+    -- ============================
+    CREATE TABLE transactions (
+      id SERIAL PRIMARY KEY,
+      receipt_id INTEGER,
+      amount NUMERIC NOT NULL,
+      transaction_date DATE NOT NULL,
+      merchant TEXT NOT NULL,
+      description TEXT,
+      category_id INTEGER,
+      user_id TEXT NOT NULL,
+      recurring BOOLEAN DEFAULT FALSE,
+      subcategory_id INTEGER,
+      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+      FOREIGN KEY (subcategory_id) REFERENCES subcategories(id) ON DELETE SET NULL
+    );
+
+    -- ============================
     -- RECEIPTS
     -- ============================
     CREATE TABLE receipts (
@@ -58,27 +79,8 @@ export async function initDatabase() {
       FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE SET NULL
     );
 
-        -- ============================
-    -- TRANSACTIONS
     -- ============================
-    CREATE TABLE transactions (
-      id SERIAL PRIMARY KEY,
-      receipt_id INTEGER,
-      amount NUMERIC NOT NULL,
-      transaction_date DATE NOT NULL,
-      merchant TEXT NOT NULL,
-      description TEXT,
-      category_id INTEGER,
-      user_id TEXT NOT NULL,
-      recurring BOOLEAN DEFAULT FALSE,
-      subcategory_id INTEGER,
-      FOREIGN KEY (receipt_id) REFERENCES receipts(id) ON DELETE SET NULL,
-      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
-      FOREIGN KEY (subcategory_id) REFERENCES subcategories(id) ON DELETE SET NULL
-    );
-
-        -- ============================
-    -- BUDGETS (GLOBAL, NOT PER USER)
+    -- BUDGETS
     -- ============================
     CREATE TABLE budgets (
       id SERIAL PRIMARY KEY,
@@ -87,8 +89,8 @@ export async function initDatabase() {
       remaining NUMERIC DEFAULT 0
     );
 
-        -- ============================
-    -- SUB_BUDGETS (PER USER, PER MAAND)
+    -- ============================
+    -- SUB_BUDGETS
     -- ============================
     CREATE TABLE sub_budgets (
       id SERIAL PRIMARY KEY,
@@ -105,7 +107,7 @@ export async function initDatabase() {
     CREATE INDEX idx_subbudgets_unique
       ON sub_budgets (user_id, month, category_id);
 
-        -- ============================
+    -- ============================
     -- BUDGET CATEGORIES
     -- ============================
     CREATE TABLE budget_categories (
@@ -117,7 +119,7 @@ export async function initDatabase() {
       FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
     );
 
-        -- ============================
+    -- ============================
     -- FIXED COSTS
     -- ============================
     CREATE TABLE fixed_costs (
@@ -129,11 +131,11 @@ export async function initDatabase() {
       FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
     );
 
-        -- ============================
+    -- ============================
     -- MERCHANT MEMORY
     -- ============================
     CREATE TABLE merchant_memory (
-      user_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,  -- TEXT voor 'demo-user'
       merchant TEXT NOT NULL,
       category_id INTEGER NOT NULL,
       confidence NUMERIC NOT NULL DEFAULT 1.0,
@@ -141,7 +143,7 @@ export async function initDatabase() {
       PRIMARY KEY (user_id, merchant)
     );
 
-        -- ============================
+    -- ============================
     -- SAVINGS GOALS
     -- ============================
     CREATE TABLE savings_goals (
@@ -152,9 +154,9 @@ export async function initDatabase() {
       deadline TEXT,
       user_id TEXT NOT NULL
     );
-    
+
     -- ============================
-    -- SAVINGS 
+    -- SAVINGS
     -- ============================
     CREATE TABLE savings (
       id SERIAL PRIMARY KEY,
@@ -174,7 +176,7 @@ export async function initDatabase() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-        -- ============================
+    -- ============================
     -- INDEXES
     -- ============================
     CREATE INDEX idx_transactions_user_id ON transactions(user_id);
