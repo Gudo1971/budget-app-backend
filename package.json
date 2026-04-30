@@ -5,15 +5,15 @@
   "main": "index.js",
   "type": "commonjs",
   "_moduleAliases": {
-    "@shared": "../shared",
-    "@backend": "dist/src"
+    "@shared": "dist/shared",
+    "@backend": "dist"
   },
   "scripts": {
     "dev": "nodemon --watch src --exec ts-node -P tsconfig.json -r tsconfig-paths/register src/index.ts",
     "build": "npm run build:clean && npm run build:compile",
     "build:clean": "rimraf dist",
     "build:compile": "tsc -P tsconfig.json",
-    "start": "node -r module-alias/register dist/src/index.js",
+    "start": "node -r module-alias/register dist/index.js",
     "seed": "ts-node -P tsconfig.json -r tsconfig-paths/register src/scripts/import-all-csvs.ts",
     "db:init": "ts-node -P tsconfig.json -r tsconfig-paths/register src/scripts/init-db.ts",
     "db:seed": "ts-node -P tsconfig.json -r tsconfig-paths/register src/scripts/import-all-csvs.ts"
