@@ -8,18 +8,23 @@ export async function importTransactionsCsv(filePath: string, userId: string) {
   const rows = await parseCsv(buffer);
 
   for (const row of rows) {
-    const merchant_raw = row.description ?? "";
+    // ⭐ Normalize
+    const date = (row.date || "").trim();
+    const description = (row.description || "").trim();
+    const amountRaw = (row.amount || "").trim();
+
+    // ⭐ Skip lege regels
+    if (!date || !description || !amountRaw) {
+      continue;
+    }
+
+    const amount = Number(amountRaw);
+    if (Number.isNaN(amount)) {
+      continue;
+    }
+
+    const merchant_raw = description;
     const normMerchant = normalizeMerchant(merchant_raw);
-
-    const amount = Number(row.amount);
-    const date = row.date;
-    const description = row.description ?? normMerchant.display;
-
-    // ⭐ GEEN category_id meer uit CSV
-    // ⭐ GEEN merchant_memory override
-    // ⭐ GEEN fallback 13
-    // ⭐ GEEN mapCsvCategory
-    // ⭐ Backend bepaalt ALLES
 
     await transactionService.create({
       amount,

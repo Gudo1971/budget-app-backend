@@ -5,13 +5,17 @@ const poolConfig: PoolConfig = {
   connectionString: process.env.DATABASE_URL,
 
   // Connection pool settings voor production
-  max: 20, // Maximum aantal connections
-  min: 2, // Minimum aantal connections
-  idleTimeoutMillis: 30000, // Close idle connections na 30s
-  connectionTimeoutMillis: 10000, // Timeout voor nieuwe connections
+  max: 20,
+  min: 2,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
 
-  // Error handling
-  allowExitOnIdle: false, // Voorkomt dat de pool sluit bij idle
+  // ⭐ BELANGRIJK: Supabase + Windows + Node fix
+  ssl: {
+    rejectUnauthorized: false,
+  },
+
+  allowExitOnIdle: false,
 };
 
 export const pool = new Pool(poolConfig);
@@ -32,7 +36,6 @@ process.on("SIGTERM", async () => {
 // ✅ Future-proof: Error monitoring
 pool.on("error", (err) => {
   console.error("Unexpected database pool error:", err);
-  // In productie: stuur naar logging service (Sentry, LogRocket, etc.)
 });
 
 pool.on("connect", () => {

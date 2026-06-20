@@ -18,9 +18,16 @@ export async function importCsv(filePath: string) {
       .on("end", async () => {
         try {
           for (const row of rows) {
-            const merchant = row.merchant || row.Merchant || row.MERCHANT || "";
-            const description =
+            // ⭐ Skip lege regels (DIT MOET HIER)
+            if (!row.date || !row.description || !row.amount) {
+              continue;
+            }
+            const rawDescription =
               row.description || row.Description || row.DESCRIPTION || "";
+
+            const description = rawDescription.trim();
+            const merchant = description; // ⭐ FIX: merchant mag nooit leeg zijn
+
             const amount = parseFloat(
               row.amount || row.Amount || row.AMOUNT || "0",
             );
@@ -40,17 +47,20 @@ export async function importCsv(filePath: string) {
             );
 
             // 3. Insert transaction (PostgreSQL)
+            const date = row.date || row.Date || row.DATE;
+
             await pool.query(
               `
-              INSERT INTO transactions (user_id, merchant, description, amount, category_id)
-              VALUES ($1, $2, $3, $4, $5)
-              `,
+  INSERT INTO transactions (user_id, merchant, description, amount, category_id, transaction_date)
+  VALUES ($1, $2, $3, $4, $5, $6)
+  `,
               [
                 userId,
                 merchant,
                 description,
                 amount,
                 categoryResolved.category_id,
+                date,
               ],
             );
           }
@@ -72,6 +82,12 @@ if (require.main === module) {
   }
 
   importCsv(file)
-    .then(() => console.log("CSV import completed"))
-    .catch((err) => console.error("Import failed:", err));
+    .then(async () => {
+      console.log("CSV import completed");
+      await pool.end(); // ⭐ HIER
+    })
+    .catch(async (err) => {
+      console.error("Import failed:", err);
+      await pool.end(); // ⭐ EN OOK HIER
+    });
 }

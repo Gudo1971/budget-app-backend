@@ -53,47 +53,54 @@ async function importAllCsvs() {
 
   console.log("Starting CSV import...");
 
-  const importOrder = [
-    "categories.csv",
-    "subcategories.csv",
-    "budgets.csv",
-    "budget_categories.csv",
-    "fixed_costs.csv",
-    "savings_goals.csv",
-    "merchant_memory.csv",
-    "transactions.csv",
-  ];
+  try {
+    const importOrder = [
+      "categories.csv",
+      "subcategories.csv",
+      "budgets.csv",
+      "budget_categories.csv",
+      "fixed_costs.csv",
+      "savings_goals.csv",
+      "merchant_memory.csv",
+      "transactions.csv",
+    ];
 
-  for (const file of importOrder) {
-    const filePath = path.join(dataDir, file);
+    for (const file of importOrder) {
+      const filePath = path.join(dataDir, file);
 
-    if (!fs.existsSync(filePath)) {
-      console.log(`Skipping ${file} (not found)`);
-      continue;
+      if (!fs.existsSync(filePath)) {
+        console.log(`Skipping ${file} (not found)`);
+        continue;
+      }
+
+      console.log("Importing:", file);
+
+      if (file === "categories.csv") {
+        await importCategoriesCsv(filePath);
+      } else if (file === "subcategories.csv") {
+        await importSubcategoriesCsv(filePath);
+      } else if (file === "budgets.csv") {
+        await importBudgetsCsv(filePath);
+      } else if (file === "budget_categories.csv") {
+        await importBudgetCategoriesCsv(filePath);
+      } else if (file === "fixed_costs.csv") {
+        await importFixedCostsCsv(filePath);
+      } else if (file === "savings_goals.csv") {
+        await importSavingsGoalsCsv(filePath, "demo-user");
+      } else if (file === "merchant_memory.csv") {
+        await importMerchantMemoryCsv("demo-user");
+      } else if (file === "transactions.csv") {
+        await importTransactionsCsv(filePath, "demo-user");
+      }
     }
 
-    console.log("Importing:", file);
-
-    if (file === "categories.csv") {
-      await importCategoriesCsv(filePath);
-    } else if (file === "subcategories.csv") {
-      await importSubcategoriesCsv(filePath);
-    } else if (file === "budgets.csv") {
-      await importBudgetsCsv(filePath);
-    } else if (file === "budget_categories.csv") {
-      await importBudgetCategoriesCsv(filePath);
-    } else if (file === "fixed_costs.csv") {
-      await importFixedCostsCsv(filePath);
-    } else if (file === "savings_goals.csv") {
-      await importSavingsGoalsCsv(filePath, "demo-user");
-    } else if (file === "merchant_memory.csv") {
-      await importMerchantMemoryCsv("demo-user");
-    } else if (file === "transactions.csv") {
-      await importTransactionsCsv(filePath, "demo-user");
-    }
+    console.log("All CSVs imported successfully.");
+  } finally {
+    await pool.end();
   }
-
-  console.log("All CSVs imported successfully.");
 }
 
-importAllCsvs();
+importAllCsvs().catch((error) => {
+  console.error("CSV seed failed:", error);
+  process.exitCode = 1;
+});

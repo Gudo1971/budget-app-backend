@@ -96,10 +96,15 @@ export const transactionService = {
       };
     }
 
-    if (amount == null || !merchant) {
+    if (
+      amount == null ||
+      Number.isNaN(Number(amount)) ||
+      !merchant ||
+      merchant.trim() === ""
+    ) {
       return {
         success: false,
-        error: "Missing required fields: amount, merchant",
+        error: "Missing or invalid fields: amount, merchant",
         data: null,
       };
     }
