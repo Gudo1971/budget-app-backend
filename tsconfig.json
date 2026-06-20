@@ -3,6 +3,7 @@
     "target": "ES2020",
     "module": "CommonJS",
     "moduleResolution": "Node",
+
     "rootDir": "src",
     "outDir": "dist",
 
@@ -13,9 +14,12 @@
 
     "baseUrl": "src",
     "paths": {
-      "@shared/*": ["shared/*"],
-      "@backend/*": ["*"]
-    }
+      "@backend/*": ["*"],
+      "@shared/*": ["shared/*"]
+    },
+
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true
   },
 
   "include": ["src"],
