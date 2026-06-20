@@ -2,6 +2,9 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import path from "path";
+import dns from "node:dns";
+
+dns.setDefaultResultOrder("ipv4first");
 
 // ✅ Future-proof: Environment en database validatie
 import { env } from "./lib/env";
