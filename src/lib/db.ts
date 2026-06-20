@@ -1,8 +1,21 @@
 import { Pool, PoolConfig } from "pg";
 
+function sanitizeDatabaseUrl(url?: string) {
+  if (!url) return url;
+
+  // Keep SSL behavior controlled by the explicit `ssl` object below.
+  const cleaned = url
+    .replace(/([?&])sslmode=[^&]*/gi, "$1")
+    .replace(/([?&])uselibpqcompat=[^&]*/gi, "$1")
+    .replace(/[?&]$/, "")
+    .replace("?&", "?");
+
+  return cleaned;
+}
+
 // ✅ Future-proof: Configureerbare connection pool
 const poolConfig: PoolConfig & { family?: number } = {
-  connectionString: process.env.DATABASE_URL,
+  connectionString: sanitizeDatabaseUrl(process.env.DATABASE_URL),
 
   // Force IPv4 DNS resolution to avoid ENETUNREACH on hosts without IPv6 egress.
   family: 4,
