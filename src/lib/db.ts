@@ -1,8 +1,11 @@
 import { Pool, PoolConfig } from "pg";
 
 // ✅ Future-proof: Configureerbare connection pool
-const poolConfig: PoolConfig = {
+const poolConfig: PoolConfig & { family?: number } = {
   connectionString: process.env.DATABASE_URL,
+
+  // Force IPv4 DNS resolution to avoid ENETUNREACH on hosts without IPv6 egress.
+  family: 4,
 
   // Connection pool settings voor production
   max: 20,
